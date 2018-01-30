@@ -1,0 +1,67 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:paddingStart="@dimen/screenEdgeMarginHorizontal_wide"
+    android:paddingEnd="@dimen/screenEdgeMarginHorizontal_wide"
+    tools:context="com.iot.extron.smartlightswitch.bridgefinder.FBridgeFinder">
+
+    <LinearLayout
+        android:id="@+id/findBridgesLayout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:orientation="vertical"
+        tools:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="@string/no_bridges"
+            android:textAppearance="?android:attr/textAppearanceSmall" />
+
+        <android.support.v4.widget.Space
+            android:layout_width="match_parent"
+            android:layout_height="16dp" />
+
+        <Button
+            android:id="@+id/findBridgesButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="@string/find_bridges" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/progressLayout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:orientation="vertical"
+        android:visibility="gone"
+        tools:visibility="visible">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/searching_for_bridges"
+            android:textAppearance="?android:attr/textAppearanceSmall"/>
+        <android.support.v4.widget.Space
+            android:layout_width="match_parent"
+            android:layout_height="16dp" />
+        <ProgressBar
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"/>
+        <android.support.v4.widget.Space
+            android:layout_width="match_parent"
+            android:layout_height="16dp" />
+        <Button
+            android:id="@+id/cancelButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="@android:string/cancel"/>
+    </LinearLayout>
+
+</RelativeLayout>

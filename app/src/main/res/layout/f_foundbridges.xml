@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:paddingTop="8dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/screenEdgeMarginHorizontal"
+        android:layout_marginEnd="@dimen/screenEdgeMarginHorizontal"
+        android:gravity="center_vertical"
+        android:text="@string/select_bridge"
+        android:textAppearance="?android:attr/textAppearanceMedium"/>
+
+    <android.support.v7.widget.RecyclerView
+        android:id="@+id/BridgesRecyclerView"
+        android:name="com.iot.extron.smartlightswitch.bridgefinder.FFoundBridges"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        app:layoutManager="LinearLayoutManager"
+        tools:context="com.iot.extron.smartlightswitch.bridgefinder.FFoundBridges"
+        tools:listitem="@layout/v_knownbridge" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/cancelButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@android:string/cancel"
+            style="?attr/borderlessButtonAccentStyle"/>
+        <Button
+            android:id="@+id/okButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@android:string/ok"
+            android:enabled="false"
+            style="?attr/borderlessButtonAccentStyle"/>
+    </LinearLayout>
+
+</LinearLayout>

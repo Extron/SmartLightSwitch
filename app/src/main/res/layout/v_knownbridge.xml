@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="@dimen/listItemHeight_twoLine"
+    android:paddingStart="@dimen/listItemMarginHorizontal"
+    android:paddingEnd="@dimen/listItemMarginHorizontal"
+    android:background="@drawable/selectable_list_item_ripple">
+    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_centerInParent="true">
+        <TextView
+            android:id="@+id/bridgeNameTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="[Bridge Name]"
+            android:textAppearance="?attr/textAppearanceListItem" />
+
+        <TextView
+            android:id="@+id/BridgeIpTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="[0.0.0.0]"
+            android:textAppearance="?attr/textAppearanceListItemSecondary" />
+    </LinearLayout>
+
+</RelativeLayout>

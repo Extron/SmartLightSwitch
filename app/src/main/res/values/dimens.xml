@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="screenEdgeMarginHorizontal">16dp</dimen>
+    <dimen name="screenEdgeMarginHorizontal_wide">32dp</dimen>
+
+    <dimen name="navigationHeaderHeight">128dp</dimen>
+
+    <dimen name="listItemMarginHorizontal">16dp</dimen>
+    <dimen name="listItemHeight_twoLine">72dp</dimen>
+
+</resources>

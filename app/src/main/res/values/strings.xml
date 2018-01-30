@@ -1,0 +1,44 @@
+<resources>
+    <string name="app_name">SmartLightSwitch</string>
+
+    <string name="switchName">Switch</string>
+    <string name="bridge_name">Bridge: {0}</string>
+    <string name="ip_address">IP Address: {0}</string>
+    <string name="unknown">Unknown</string>
+    <string name="not_connected">Not Connected</string>
+
+    <string name="off">OFF</string>
+    <string name="on">ON</string>
+    <string name="brightness">Brightness: {0}%</string>
+    <string name="lights">Lights</string>
+    <string name="groups">Groups</string>
+    <string name="no_lights_selected">No Lights Selected</string>
+    <string name="multiple_lights_selected">Multiple Lights Selected</string>
+    <string name="could_not_connect_light">Could not connect to light</string>
+
+    <string name="disconnect_from_bridge">Disconnect from Bridge</string>
+    <string name="settings">Settings</string>
+    <string name="shutdown">Shut Down</string>
+
+    <string name="no_bridges">Not connected to a Hue bridge.  Press the button to search for bridges on the local network.</string>
+    <string name="find_bridges">Find Bridges</string>
+    <string name="searching_for_bridges">Searching for Hue bridges on the local network…</string>
+
+    <string name="select_bridge">Select Hue bridge to connect to</string>
+
+    <string name="connecting_to_bridge">Connecting to bridge {0} at {1}</string>
+    <string name="opening_connection">Opening connection…</string>
+    <string name="connected">Successfully connected</string>
+    <string name="authenticating">Authenticating…</string>
+    <string name="press_link">Please press the link button on your Hue bridge</string>
+    <string name="authenticated">Successfully authenticated</string>
+    <string name="failed_to_connect">Failed to connect to bridge {0} at {1}.  Ensure the bridge is connected to the network and try again or pick another bridge.</string>
+    <string name="error_on_connect">There were errors while attempting to connect to bridge {0} at {1}:\n{2}</string>
+    <string name="try_again">Try Again</string>
+    <string name="back">Back</string>
+
+    <string name="connection_error_snack">Connection errors occurred.</string>
+    <string name="unexpected_disconnect_snack">Bridge disconnected unexpectedly.</string>
+    <string name="reconnect">Reconnect</string>
+
+</resources>
