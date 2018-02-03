@@ -25,9 +25,11 @@ import java.util.function.Predicate;
 import com.iot.extron.smartlightswitch.AMain;
 import com.iot.extron.smartlightswitch.BridgeEventCallback;
 import com.iot.extron.smartlightswitch.models.LightObject;
+import com.iot.extron.smartlightswitch.models.SceneGroup;
 import com.philips.lighting.hue.sdk.wrapper.connection.BridgeConnectionType;
 import com.philips.lighting.hue.sdk.wrapper.connection.BridgeStateCacheType;
 import com.philips.lighting.hue.sdk.wrapper.domain.Bridge;
+import com.philips.lighting.hue.sdk.wrapper.domain.HueError;
 import com.philips.lighting.hue.sdk.wrapper.domain.ReturnCode;
 import com.philips.lighting.hue.sdk.wrapper.domain.device.light.LightPoint;
 
@@ -35,6 +37,8 @@ import com.iot.extron.smartlightswitch.utilities.ColorUtilities;
 import com.iot.extron.smartlightswitch.R;
 import com.philips.lighting.hue.sdk.wrapper.domain.device.light.LightState;
 import com.philips.lighting.hue.sdk.wrapper.domain.resource.Group;
+import com.philips.lighting.hue.sdk.wrapper.domain.resource.Scene;
+import com.philips.lighting.hue.sdk.wrapper.utilities.HueColor;
 
 
 public class FLightswitch extends Fragment
@@ -43,6 +47,10 @@ public class FLightswitch extends Fragment
 
     private static final String TAG = "FLightswitch";
     private static final String LightPickerTag = "DFLightPicker";
+    private static final String ColorPickerTag = "DFColorPicker";
+    private static final String ScenePickerTag = "DFScenePicker";
+    private static final int DEFAULT_COLOR = 0xFFFFFFDD;
+    private static final int HEARTBEAT_INTERVAL = 15 * 1000;
 
     //endregion
 
@@ -59,7 +67,7 @@ public class FLightswitch extends Fragment
     int brightness = 100;
 
     /** The current color of the light/lightgroup. */
-    Color color = Color.valueOf(Color.WHITE);
+    Color color = Color.valueOf(DEFAULT_COLOR);
 
     //endregion
 
@@ -71,6 +79,7 @@ public class FLightswitch extends Fragment
     Button offButton;
     Button lightButton;
     FloatingActionButton colorFab;
+    FloatingActionButton sceneFab;
     ViewGroup brightnessLayout;
     TextView brightnessTextView;
     SeekBar brightnessSeekBar;
@@ -140,7 +149,7 @@ public class FLightswitch extends Fragment
                 for (Group group : currentGroups)
                     selectedGroups.add(allGroups.indexOf(group));
 
-                DFPickLights lightPicker = DFPickLights.newInstance(allLights, selectedLights, allGroups, selectedGroups, new DFPickLights.OnLightsSelectedCallback()
+                DFLightPicker lightPicker = DFLightPicker.newInstance(allLights, selectedLights, allGroups, selectedGroups, new DFLightPicker.OnLightsSelectedCallback()
                 {
                     @Override
                     public void onLightsSelected(List<LightPoint> selectedLights, List<Group> selectedGroups)
@@ -160,7 +169,47 @@ public class FLightswitch extends Fragment
             }
         });
 
-        colorFab = (FloatingActionButton)view.findViewById(R.id.colorFab);
+        colorFab = view.findViewById(R.id.colorFab);
+        colorFab.setOnClickListener(new View.OnClickListener()
+        {
+            @Override
+            public void onClick(View view)
+            {
+                DFColorPicker colorPicker = DFColorPicker.newInstance(color.toArgb(), new DFColorPicker.OnColorSelectedCallback()
+                {
+                    @Override
+                    public void colorSelected(int color)
+                    {
+                        setColor(color);
+                    }
+                });
+
+                colorPicker.show(getFragmentManager(), ColorPickerTag);
+            }
+        });
+
+        sceneFab = view.findViewById(R.id.sceneFab);
+        sceneFab.setOnClickListener(new View.OnClickListener()
+        {
+            @Override
+            public void onClick(View view)
+            {
+                // TODO: Each light has its own list of scenes, which will look like duplicates in the list if multiple lights are selected.
+                // Need to aggregate these duplicates into a single object.
+                List<Scene> scenes = ((AMain)getActivity()).getBridge().getBridgeState().getScenes();
+
+                DFScenePicker scenePicker = DFScenePicker.newInstance(lightObject.filterValidScenes(scenes), new DFScenePicker.OnSceneSelectedCallback()
+                {
+                    @Override
+                    public void sceneSelected(SceneGroup scene)
+                    {
+                        recallScene(scene);
+                    }
+                });
+
+                scenePicker.show(getFragmentManager(), ScenePickerTag);
+            }
+        });
 
         brightnessSeekBar = view.findViewById(R.id.brightnessSeekBar);
         brightnessSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener()
@@ -193,6 +242,7 @@ public class FLightswitch extends Fragment
         super.onStart();
 
         ((AMain)getActivity()).addBridgeEventCallback(bridgeEventCallback);
+        ((AMain)getActivity()).getBridge().getBridgeConnection(BridgeConnectionType.LOCAL).getHeartbeatManager().startHeartbeat(BridgeStateCacheType.LIGHTS_AND_GROUPS, HEARTBEAT_INTERVAL);
 
         getView().post(new Runnable()
         {
@@ -211,6 +261,7 @@ public class FLightswitch extends Fragment
         super.onDetach();
 
         ((AMain)getActivity()).removeBridgeEventCallback(bridgeEventCallback);
+        ((AMain)getActivity()).getBridge().getBridgeConnection(BridgeConnectionType.LOCAL).getHeartbeatManager().stopHeartbeat(BridgeStateCacheType.LIGHTS_AND_GROUPS);
     }
 
     //endregion
@@ -249,6 +300,20 @@ public class FLightswitch extends Fragment
         updateLightState(newState);
     }
 
+    /** Sets the color of the selected lights.
+     * @param color The color to set.
+     */
+    public void setColor(int color)
+    {
+        lightObject.setColor(color);
+
+        HueColor hueColor = new HueColor(new HueColor.RGB(Color.red(color), Color.green(color), Color.blue(color)), null, null);
+
+        LightState newState = new LightState();
+        newState.setXYWithColor(hueColor);
+        updateLightState(newState);
+    }
+
     /** Updates the state of the currently selected lights.
      * @param newState The new light state.
      */
@@ -267,6 +332,10 @@ public class FLightswitch extends Fragment
                     public void run()
                     {
                         responseProgressBar.setVisibility(View.GONE);
+
+                        // Force the bridge to send a refreshed state as soon as possible to make sure switch is responsive as possible.
+                        ((AMain)getActivity()).getBridge().getBridgeState().refresh(BridgeStateCacheType.LIGHTS_AND_GROUPS, BridgeConnectionType.LOCAL);
+
                         boolean anyErrors = results.stream().anyMatch(new Predicate<LightObject.LightObjectApplyResults>()
                         {
                             @Override
@@ -279,6 +348,54 @@ public class FLightswitch extends Fragment
                         if (anyErrors)
                         {
                             Snackbar.make(((AMain)getActivity()).getLayoutForSnackbar(), R.string.could_not_connect_light, Snackbar.LENGTH_LONG).show();
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    /** Recalls a scene.
+     * @param scene The scene to recall.
+     */
+    private void recallScene(SceneGroup scene)
+    {
+        responseProgressBar.setVisibility(View.VISIBLE);
+        scene.recallScenes(BridgeConnectionType.LOCAL, new SceneGroup.SceneGroupRecallCallback()
+        {
+            @Override
+            public void onRecallCompleted(final List<SceneGroup.SceneGroupRecallResult> results)
+            {
+                StringBuilder codesStr = new StringBuilder().append("\n");
+
+                for (SceneGroup.SceneGroupRecallResult result : results)
+                    codesStr.append(result.getScene().getName()).append("(").append(result.getScene().getIdentifier()).append("): ").append(result.getReturnCode()).append("\n");
+
+                Log.i(TAG, "Scene group finished recalling with return codes: " + codesStr.toString());
+
+                getActivity().runOnUiThread(new Runnable()
+                {
+                    @Override
+                    public void run()
+                    {
+                        responseProgressBar.setVisibility(View.GONE);
+                        lightObject.setColor(LightObject.COLOR_UNDEFINED);
+
+                        // Force the bridge to send a refreshed state as soon as possible to make sure switch is responsive as possible.
+                        ((AMain)getActivity()).getBridge().getBridgeState().refresh(BridgeStateCacheType.LIGHTS_AND_GROUPS, BridgeConnectionType.LOCAL);
+
+                        boolean anyErrors = results.stream().anyMatch(new Predicate<SceneGroup.SceneGroupRecallResult>()
+                        {
+                            @Override
+                            public boolean test(SceneGroup.SceneGroupRecallResult result)
+                            {
+                                return result.getReturnCode() != ReturnCode.SUCCESS;
+                            }
+                        });
+
+                        if (anyErrors)
+                        {
+                            Snackbar.make(((AMain) getActivity()).getLayoutForSnackbar(), R.string.could_not_recall_scene, Snackbar.LENGTH_LONG).show();
                         }
                     }
                 });
@@ -306,7 +423,7 @@ public class FLightswitch extends Fragment
         int lightColor = lightObject.getColor();
 
         if (lightColor == LightObject.COLOR_UNDEFINED)
-            color = Color.valueOf(Color.WHITE);
+            color = Color.valueOf(DEFAULT_COLOR);
         else
             color = Color.valueOf(lightColor);
     }
@@ -348,17 +465,22 @@ public class FLightswitch extends Fragment
         }
 
         colorFab.setEnabled(on);
+        colorFab.setVisibility(lightObject.getSupportsColors() ? View.VISIBLE : View.GONE);
+
+        sceneFab.setEnabled(on);
 
         if (animate)
         {
-            animateFab(getResources().getInteger(android.R.integer.config_shortAnimTime));
+            animateColorFab(getResources().getInteger(android.R.integer.config_shortAnimTime));
+            animateSceneFab(getResources().getInteger(android.R.integer.config_shortAnimTime));
             animateBrightnessSeekBar(getResources().getInteger(android.R.integer.config_shortAnimTime));
         }
         else
         {
             // If we are not animating the UI elements, we need to move them to the proper locations based on the state of the backing data.
             // We can simply run the same animation code, but set the duration to 0, making the change instant.
-            animateFab(0);
+            animateColorFab(0);
+            animateSceneFab(0);
             animateBrightnessSeekBar(0);
         }
     }
@@ -366,7 +488,7 @@ public class FLightswitch extends Fragment
     /** Animates the Color FAB.
      * @param animationDuration The length of time of the animation.
      */
-    private void animateFab(int animationDuration)
+    private void animateColorFab(int animationDuration)
     {
         int[] location = new int[2];
         colorFab.getLocationOnScreen(location);
@@ -375,6 +497,23 @@ public class FLightswitch extends Fragment
         getActivity().getWindowManager().getDefaultDisplay().getMetrics(metrics);
 
         ObjectAnimator animator = ObjectAnimator.ofFloat(colorFab, "translationX", on ? 0f : metrics.widthPixels - location[0]);
+        animator.setDuration(animationDuration);
+        animator.setInterpolator(new DecelerateInterpolator());
+        animator.start();
+    }
+
+    /** Animates the Scene FAB.
+     * @param animationDuration The length of time of the animation.
+     */
+    private void animateSceneFab(int animationDuration)
+    {
+        int[] location = new int[2];
+        sceneFab.getLocationOnScreen(location);
+
+        DisplayMetrics metrics = new DisplayMetrics();
+        getActivity().getWindowManager().getDefaultDisplay().getMetrics(metrics);
+
+        ObjectAnimator animator = ObjectAnimator.ofFloat(sceneFab, "translationX", on ? 0f : metrics.widthPixels - location[0]);
         animator.setDuration(animationDuration);
         animator.setInterpolator(new DecelerateInterpolator());
         animator.start();
@@ -401,6 +540,15 @@ public class FLightswitch extends Fragment
 
     private BridgeEventCallback bridgeEventCallback = new BridgeEventCallback()
     {
+        @Override
+        public void bridgeDisconnected(Bridge bridge, boolean manualDisconnect, List<HueError> errors)
+        {
+            if (!manualDisconnect)
+            {
+                Snackbar.make(((AMain)getActivity()).getLayoutForSnackbar(), R.string.unexpected_disconnect_snack, Snackbar.LENGTH_LONG).show();
+            }
+        }
+
         @Override
         public void updatedLightsAndGroups(Bridge bridge)
         {

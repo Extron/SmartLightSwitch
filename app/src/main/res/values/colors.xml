@@ -9,4 +9,6 @@
     <color name="colorTextOnLight">#FFFFFF</color>
     <color name="colorTextOnDark">#000000</color>
     <color name="colorTextOff">#444444</color>
+
+    <color name="switchWindowBackground">#000000</color>
 </resources>

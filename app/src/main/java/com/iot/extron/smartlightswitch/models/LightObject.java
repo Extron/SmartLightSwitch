@@ -14,12 +14,15 @@ import com.philips.lighting.hue.sdk.wrapper.domain.ReturnCode;
 import com.philips.lighting.hue.sdk.wrapper.domain.clip.ClipResponse;
 import com.philips.lighting.hue.sdk.wrapper.domain.device.light.LightPoint;
 import com.philips.lighting.hue.sdk.wrapper.domain.device.light.LightState;
+import com.philips.lighting.hue.sdk.wrapper.domain.device.light.LightType;
 import com.philips.lighting.hue.sdk.wrapper.domain.resource.Group;
+import com.philips.lighting.hue.sdk.wrapper.domain.resource.Scene;
 import com.philips.lighting.hue.sdk.wrapper.utilities.HueColor;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -60,6 +63,8 @@ public class LightObject
 
     //endregion
 
+
+    //region Property Getters/Setters
 
     /** Gets the name of the light group.  If there is only one {@link LightPoint} or {@link Group} in the object, returns that name.
      * If there are no object, returns <code>LightObject.NONE</code>.  If there are multiple objects, returns <code>LightObject.MULTIPLE</code>.
@@ -104,6 +109,34 @@ public class LightObject
                     return ((Group)domainObject).getGroupState().isAnyOn();
                 else
                     return false;
+            }
+        });
+    }
+
+    /** Gets whether the light object supports color, which it does if any contained lights support color.
+     * @return Returns <code>true</code> of any contained lights support color, <code>false</code> otherwise.
+     */
+    public boolean getSupportsColors()
+    {
+        return domainObjects.stream().anyMatch(new Predicate<DomainObject>()
+        {
+            @Override
+            public boolean test(DomainObject domainObject)
+            {
+                if (domainObject instanceof LightPoint)
+                {
+                    LightType type = ((LightPoint)domainObject).getLightType();
+                    return (type == LightType.COLOR) || (type == LightType.COLOR_TEMPERATURE) || (type == LightType.EXTENDED_COLOR);
+                }
+                else if (domainObject instanceof  Group && ((Group)domainObject).getGroupState() != null)
+                {
+                    // TODO: Need to figure out best way to get light information for a group.
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
             }
         });
     }
@@ -155,30 +188,38 @@ public class LightObject
         this.color = color;
     }
 
-    /** Gets whether this light object contains any lights.
-     * @return Returns <code>true</code> if there are lights, <code>false</code> otherwise.
+    //endregion
+
+
+    //region Light Adders/Getters
+
+    /** Adds a {@link LightPoint} to the light object.
+     * @param lightPoint The {@link LightPoint} to add.
      */
-    public boolean hasLights()
-    {
-        return domainObjects.size() > 0;
-    }
-
-
     public void addLightPoint(LightPoint lightPoint)
     {
         domainObjects.add(lightPoint);
     }
 
+    /** Adds a list of {@link LightPoint}s to the light object.
+     * @param lightPoints The {@link LightPoint}s to add.
+     */
     public void addLightPoints(List<LightPoint> lightPoints)
     {
         domainObjects.addAll(lightPoints);
     }
 
+    /** Adds a {@link Group} to the light object.
+     * @param lightGroup The {@link Group} to add.
+     */
     public void addLightGroup(Group lightGroup)
     {
         domainObjects.add(lightGroup);
     }
 
+    /** Adds a list of {@link Group}s to the light object.
+     * @param lightGroups The {@link Group}s to add.
+     */
     public void addLightGroups(List<Group> lightGroups)
     {
         domainObjects.addAll(lightGroups);
@@ -226,6 +267,18 @@ public class LightObject
                 return (Group)domainObject;
             }
         }).collect(Collectors.<Group>toList());
+    }
+
+    //endregion
+
+
+
+    /** Gets whether this light object contains any lights.
+     * @return Returns <code>true</code> if there are lights, <code>false</code> otherwise.
+     */
+    public boolean hasLights()
+    {
+        return domainObjects.size() > 0;
     }
 
     public void updateLightState(BridgeState bridgeState)
@@ -305,6 +358,57 @@ public class LightObject
                 });
             }
         }
+    }
+
+    /** Filters and groups a list of scenes to those that apply to the lights contained in this light object.
+     * @param scenes The list of scenes to filter and group.
+     * @return A filtered list of scene groups.
+     */
+    public List<SceneGroup> filterValidScenes(List<Scene> scenes)
+    {
+        List<Scene> filteredScenes = scenes.stream().filter(new Predicate<Scene>()
+        {
+            @Override
+            public boolean test(final Scene scene)
+            {
+                return domainObjects.stream().anyMatch(new Predicate<DomainObject>()
+                {
+                    @Override
+                    public boolean test(DomainObject domainObject)
+                    {
+                        if (domainObject instanceof LightPoint)
+                        {
+                            return scene.getLightIds().contains(((LightPoint) domainObject).getIdentifier());
+                        }
+                        else if (domainObject instanceof Group)
+                        {
+                            for (String id : ((Group)domainObject).getLightIds())
+                            {
+                                if (scene.getLightIds().contains(id))
+                                    return true;
+                            }
+                        }
+                        return false;
+                    }
+                });
+            }
+        }).collect(Collectors.<Scene>toList());
+
+        Map<String, List<Scene>> groups = filteredScenes.stream().collect(Collectors.groupingBy(new Function<Scene, String>()
+        {
+            @Override
+            public String apply(Scene scene)
+            {
+                return scene.getName();
+            }
+        }));
+
+        List<SceneGroup> sceneGroups = new ArrayList<>();
+
+        for (Map.Entry<String, List<Scene>> entry : groups.entrySet())
+            sceneGroups.add(new SceneGroup(entry.getValue()));
+
+        return sceneGroups;
     }
 
     public interface LightObjectApplyStateCallback

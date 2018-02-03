@@ -1,0 +1,9 @@
+<resources>
+    <declare-styleable name="ColorPickerView">
+        <attr name="selectionRadius" format="dimension"/>
+        <attr name="borderColor" format="reference"/>
+        <attr name="borderSize" format="dimension"/>
+        <attr name="selectionBorderColor" format="reference"/>
+        <attr name="selectionBorderSize" format="dimension"/>
+    </declare-styleable>
+</resources>

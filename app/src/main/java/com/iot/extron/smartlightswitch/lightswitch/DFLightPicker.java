@@ -5,7 +5,6 @@ import android.app.Dialog;
 import android.app.DialogFragment;
 import android.content.DialogInterface;
 import android.os.Bundle;
-import android.support.annotation.Nullable;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
@@ -29,7 +28,7 @@ import com.philips.lighting.hue.sdk.wrapper.domain.resource.Group;
 /**
  * Manages a dialog that allows users to pick one or more lights to manage with the light switch.
  */
-public class DFPickLights extends DialogFragment
+public class DFLightPicker extends DialogFragment
 {
     //region Fields
 
@@ -63,9 +62,9 @@ public class DFPickLights extends DialogFragment
     /** Creates a new dialog fragment to pick lights.
      * @param lights The list of lights to display.
      */
-    public static DFPickLights newInstance(List<LightPoint> lights, List<Integer> selectedLights, List<Group> groups, List<Integer> selectedGroups, OnLightsSelectedCallback onLightsSelectedCallback)
+    public static DFLightPicker newInstance(List<LightPoint> lights, List<Integer> selectedLights, List<Group> groups, List<Integer> selectedGroups, OnLightsSelectedCallback onLightsSelectedCallback)
     {
-        DFPickLights fragment = new DFPickLights();
+        DFLightPicker fragment = new DFLightPicker();
         fragment.onLightsSelectedCallback = onLightsSelectedCallback;
         fragment.lights = lights;
         fragment.selectedLights = selectedLights;
@@ -200,7 +199,7 @@ public class DFPickLights extends DialogFragment
 
                 case ITEM_TYPE:
                 default:
-                    View itemView = LayoutInflater.from(parent.getContext()).inflate(R.layout.v_selectablelightitem, parent, false);
+                    View itemView = LayoutInflater.from(parent.getContext()).inflate(R.layout.v_lightitem, parent, false);
                     return new ItemViewHolder(itemView);
             }
         }

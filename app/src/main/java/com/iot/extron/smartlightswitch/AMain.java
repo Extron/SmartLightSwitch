@@ -17,6 +17,7 @@ import android.widget.TextView;
 
 import com.iot.extron.smartlightswitch.bridgefinder.FBridgeFinder;
 import com.iot.extron.smartlightswitch.bridgefinder.FConnectToBridge;
+import com.iot.extron.smartlightswitch.lightswitch.DFColorPicker;
 import com.iot.extron.smartlightswitch.lightswitch.FLightswitch;
 import com.iot.extron.smartlightswitch.utilities.TextUtilities;
 import com.philips.lighting.hue.sdk.wrapper.connection.BridgeConnection;
@@ -60,18 +61,6 @@ import java.util.List;
  */
 public class AMain extends Activity
 {
-    //region Nested Enums
-
-    enum UIState
-    {
-        FindingBridges,
-        ConnectingToKnownBridge,
-        Lightswitch
-    }
-
-    //endregion
-
-
     //region Static Fields
 
     private static final String TAG = "AMain";
@@ -89,9 +78,6 @@ public class AMain extends Activity
 
     /** The IP Address of the bridge the app is currently connected to. */
     String bridgeIp;
-
-    /** Keeps track of the current UI state. */
-    UIState uiState;
 
     /** Indicates that the user initiated a manual disconnect. */
     boolean manualDisconnect;
@@ -324,8 +310,6 @@ public class AMain extends Activity
     /** Creates a new {@link FBridgeFinder} and sets it as the current fragment. */
     private void goToBridgeFinder()
     {
-        uiState = UIState.FindingBridges;
-
         Fragment frag = new FBridgeFinder();
         FragmentTransaction transaction = getFragmentManager().beginTransaction();
 
@@ -338,8 +322,6 @@ public class AMain extends Activity
      */
     private void goToConnectToBridge(KnownBridge bridge)
     {
-        uiState = UIState.ConnectingToKnownBridge;
-
         Fragment frag = FConnectToBridge.newInstance(bridge.getName(), bridge.getIpAddress(), new FConnectToBridge.ConnectToBridgeCallback()
         {
             @Override
@@ -370,8 +352,6 @@ public class AMain extends Activity
     /** Creates a new {@link FLightswitch} and sets it as the current fragment. */
     private void goToLightswitch()
     {
-        uiState = UIState.Lightswitch;
-
         Fragment frag = new FLightswitch();
         FragmentTransaction transaction = getFragmentManager().beginTransaction();
 

@@ -5,8 +5,8 @@
     android:layout_height="wrap_content"
     android:paddingStart="@dimen/screenEdgeMarginHorizontal"
     android:paddingEnd="@dimen/screenEdgeMarginHorizontal"
-    android:paddingTop="4dp"
-    android:paddingBottom="4dp">
+    android:paddingTop="@dimen/listItemMarginVertical"
+    android:paddingBottom="@dimen/listItemMarginVertical">
     <android.support.v4.widget.Space
         android:layout_width="16dp"
         android:layout_height="match_parent" />

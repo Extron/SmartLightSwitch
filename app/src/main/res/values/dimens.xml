@@ -6,6 +6,7 @@
     <dimen name="navigationHeaderHeight">128dp</dimen>
 
     <dimen name="listItemMarginHorizontal">16dp</dimen>
+    <dimen name="listItemMarginVertical">4dp</dimen>
     <dimen name="listItemHeight_twoLine">72dp</dimen>
 
 </resources>
