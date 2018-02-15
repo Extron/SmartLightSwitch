@@ -10,6 +10,7 @@ import android.widget.ArrayAdapter;
 import com.iot.extron.smartlightswitch.R;
 import com.iot.extron.smartlightswitch.models.SceneGroup;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -47,7 +48,7 @@ public class DFScenePicker extends DialogFragment
     {
         DFScenePicker fragment = new DFScenePicker();
         fragment.onSceneSelectedCallback = callback;
-        fragment.scenes = scenes;
+        fragment.scenes = scenes.stream().sorted((s1, s2) -> s1.getName().compareTo(s2.getName())).collect(Collectors.toList());
         return fragment;
     }
 
@@ -72,35 +73,35 @@ public class DFScenePicker extends DialogFragment
 
 
         builder
-                .setTitle(R.string.select_scene)
-                .setIcon(R.drawable.ic_photo_white_24dp)
-                .setSingleChoiceItems(new ArrayAdapter<String>(getContext(), android.R.layout.simple_list_item_single_choice, names), -1, new DialogInterface.OnClickListener()
+            .setTitle(R.string.select_scene)
+            .setIcon(R.drawable.ic_photo_white_24dp)
+            .setSingleChoiceItems(new ArrayAdapter<String>(getContext(), android.R.layout.simple_list_item_single_choice, names), -1, new DialogInterface.OnClickListener()
+            {
+                @Override
+                public void onClick(DialogInterface dialogInterface, int index)
                 {
-                    @Override
-                    public void onClick(DialogInterface dialogInterface, int index)
-                    {
-                        selectedScene = index;
-                    }
-                })
-                .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener()
+                    selectedScene = index;
+                }
+            })
+            .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener()
+            {
+                @Override
+                public void onClick(DialogInterface dialog, int id)
                 {
-                    @Override
-                    public void onClick(DialogInterface dialog, int id)
+                    if (onSceneSelectedCallback != null)
                     {
-                        if (onSceneSelectedCallback != null)
-                        {
-                            if (selectedScene > -1)
-                                onSceneSelectedCallback.sceneSelected(scenes.get(selectedScene));
-                        }
+                        if (selectedScene > -1)
+                            onSceneSelectedCallback.sceneSelected(scenes.get(selectedScene));
                     }
-                })
-                .setNegativeButton(android.R.string.cancel, new DialogInterface.OnClickListener()
+                }
+            })
+            .setNegativeButton(android.R.string.cancel, new DialogInterface.OnClickListener()
+            {
+                @Override
+                public void onClick(DialogInterface dialog, int id)
                 {
-                    @Override
-                    public void onClick(DialogInterface dialog, int id)
-                    {
-                    }
-                });
+                }
+            });
 
         return builder.create();
     }

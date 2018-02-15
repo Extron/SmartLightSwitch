@@ -2,6 +2,7 @@
 <resources>
     <dimen name="screenEdgeMarginHorizontal">16dp</dimen>
     <dimen name="screenEdgeMarginHorizontal_wide">32dp</dimen>
+    <dimen name="screenEdgeMarginHorizontal_xwide">72dp</dimen>
 
     <dimen name="navigationHeaderHeight">128dp</dimen>
 

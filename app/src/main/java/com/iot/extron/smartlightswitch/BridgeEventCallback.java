@@ -47,6 +47,11 @@ public abstract class BridgeEventCallback
      */
     public void bridgeInitialized(Bridge bridge) { };
 
+    /** Raised when the bridge is about to be disconnected manually.
+     * @param bridge The bridge.
+     */
+    public void bridgeDisconnecting(Bridge bridge) { };
+
     /** Raised when the bridge is disconnected.
      * @param bridge The bridge.
      * @param manualDisconnect Indicates whether the disconnect was initiated by the user.

@@ -1,12 +1,16 @@
 package com.iot.extron.smartlightswitch.lightswitch;
 
 import android.animation.ObjectAnimator;
-import android.content.res.ColorStateList;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
-import android.app.Fragment;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
+import android.util.ArraySet;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -20,35 +24,39 @@ import android.widget.TextView;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
-import com.iot.extron.smartlightswitch.AMain;
-import com.iot.extron.smartlightswitch.BridgeEventCallback;
-import com.iot.extron.smartlightswitch.models.LightObject;
-import com.iot.extron.smartlightswitch.models.SceneGroup;
+import com.iot.extron.smartlightswitch.models.AggregateLight;
 import com.philips.lighting.hue.sdk.wrapper.connection.BridgeConnectionType;
 import com.philips.lighting.hue.sdk.wrapper.connection.BridgeStateCacheType;
 import com.philips.lighting.hue.sdk.wrapper.domain.Bridge;
+import com.philips.lighting.hue.sdk.wrapper.domain.BridgeState;
 import com.philips.lighting.hue.sdk.wrapper.domain.HueError;
 import com.philips.lighting.hue.sdk.wrapper.domain.ReturnCode;
 import com.philips.lighting.hue.sdk.wrapper.domain.device.light.LightPoint;
-
-import com.iot.extron.smartlightswitch.utilities.ColorUtilities;
-import com.iot.extron.smartlightswitch.R;
 import com.philips.lighting.hue.sdk.wrapper.domain.device.light.LightState;
 import com.philips.lighting.hue.sdk.wrapper.domain.resource.Group;
 import com.philips.lighting.hue.sdk.wrapper.domain.resource.Scene;
 import com.philips.lighting.hue.sdk.wrapper.utilities.HueColor;
 
+import com.iot.extron.smartlightswitch.AMain;
+import com.iot.extron.smartlightswitch.BridgeEventCallback;
+import com.iot.extron.smartlightswitch.FBase;
+import com.iot.extron.smartlightswitch.models.SceneGroup;
+import com.iot.extron.smartlightswitch.utilities.ColorUtilities;
+import com.iot.extron.smartlightswitch.R;
 
-public class FLightswitch extends Fragment
+
+public class FLightswitch extends FBase
 {
     //region Static Fields
 
     private static final String TAG = "FLightswitch";
-    private static final String LightPickerTag = "DFLightPicker";
-    private static final String ColorPickerTag = "DFColorPicker";
-    private static final String ScenePickerTag = "DFScenePicker";
+    private static final String TAG_LIGHT_PICKER = "DFLightPicker";
+    private static final String TAG_COLOR_PICKER = "DFColorPicker";
+    private static final String TAG_SCENE_PICKER = "DFScenePicker";
     private static final int DEFAULT_COLOR = 0xFFFFFFDD;
     private static final int HEARTBEAT_INTERVAL = 15 * 1000;
 
@@ -58,7 +66,7 @@ public class FLightswitch extends Fragment
     //region Fields
 
     /** The light object that the switch is controlling. */
-    LightObject lightObject = new LightObject();
+    AggregateLight aggregateLight = new AggregateLight();
 
     /** Indicates whether the current light/lightgroup is on or off. */
     boolean on = false;
@@ -66,8 +74,8 @@ public class FLightswitch extends Fragment
     /** The current brightness of the light/lightgroup. */
     int brightness = 100;
 
-    /** The current color of the light/lightgroup. */
-    Color color = Color.valueOf(DEFAULT_COLOR);
+    /** The current colors of the aggregate light. */
+    List<Integer> colors = new ArrayList<>();
 
     //endregion
 
@@ -75,6 +83,7 @@ public class FLightswitch extends Fragment
     //region UI Elements
 
     ProgressBar responseProgressBar;
+    View lightBackgroundView;
     Button onButton;
     Button offButton;
     Button lightButton;
@@ -83,6 +92,10 @@ public class FLightswitch extends Fragment
     ViewGroup brightnessLayout;
     TextView brightnessTextView;
     SeekBar brightnessSeekBar;
+
+    float sceneFabOffscreenTranslation;
+    float colorFabOffscreenTranslation;
+    float brightnessSeekBarOffscreenTranslation;
 
     //endregion
 
@@ -105,11 +118,12 @@ public class FLightswitch extends Fragment
         // Inflate the layout for this fragment
         View view = inflater.inflate(R.layout.f_lightswitch, container, false);
 
-        responseProgressBar = (ProgressBar)view.findViewById(R.id.responseProgressBar);
-        brightnessLayout = (ViewGroup)view.findViewById(R.id.brightnessLayout);
+        responseProgressBar = view.findViewById(R.id.responseProgressBar);
+        brightnessLayout = view.findViewById(R.id.brightnessLayout);
         brightnessTextView = view.findViewById(R.id.brightnessTextView);
+        lightBackgroundView = view.findViewById(R.id.lightBackgroundView);
 
-        onButton = view.findViewById(R.id.onTextView);
+        onButton = view.findViewById(R.id.onButton);
         onButton.setOnClickListener(new View.OnClickListener()
         {
             @Override
@@ -119,7 +133,7 @@ public class FLightswitch extends Fragment
             }
         });
 
-        offButton = view.findViewById(R.id.offTextView);
+        offButton = view.findViewById(R.id.offButton);
         offButton.setOnClickListener(new View.OnClickListener()
         {
             @Override
@@ -135,10 +149,11 @@ public class FLightswitch extends Fragment
             @Override
             public void onClick(View view)
             {
-                List<LightPoint> allLights = ((AMain)getActivity()).getBridge().getBridgeState().getLights();
-                List<Group> allGroups = ((AMain)getActivity()).getBridge().getBridgeState().getGroups();
-                List<LightPoint> currentLights = lightObject.getLightPoints();
-                List<Group> currentGroups = lightObject.getGroups();
+                final BridgeState bridgeState = getBridge().getBridgeState();
+                List<LightPoint> allLights = bridgeState.getLights();
+                List<Group> allGroups = bridgeState.getGroups();
+                List<LightPoint> currentLights = aggregateLight.getLightPoints();
+                List<Group> currentGroups = aggregateLight.getGroups();
 
                 List<Integer> selectedLights = new ArrayList<>();
                 List<Integer> selectedGroups = new ArrayList<>();
@@ -154,61 +169,43 @@ public class FLightswitch extends Fragment
                     @Override
                     public void onLightsSelected(List<LightPoint> selectedLights, List<Group> selectedGroups)
                     {
-                        lightObject = new LightObject();
-                        lightObject.addLightPoints(selectedLights);
-                        lightObject.addLightGroups(selectedGroups);
+                        aggregateLight = new AggregateLight();
+                        aggregateLight.addLightPoints(selectedLights);
+                        aggregateLight.addLightGroups(selectedGroups, bridgeState);
 
+                        saveSelectedLights();
                         bindData();
                         configureUI(false);
 
-                        ((AMain)getActivity()).getBridge().getBridgeState().refresh(BridgeStateCacheType.LIGHTS_AND_GROUPS, BridgeConnectionType.LOCAL);
+                        getBridge().getBridgeState().refresh(BridgeStateCacheType.LIGHTS_AND_GROUPS, BridgeConnectionType.LOCAL);
                     }
                 });
 
-                lightPicker.show(getFragmentManager(), LightPickerTag);
+                lightPicker.show(getFragmentManager(), TAG_LIGHT_PICKER);
             }
         });
 
         colorFab = view.findViewById(R.id.colorFab);
-        colorFab.setOnClickListener(new View.OnClickListener()
+        colorFab.setOnClickListener(v ->
         {
-            @Override
-            public void onClick(View view)
-            {
-                DFColorPicker colorPicker = DFColorPicker.newInstance(color.toArgb(), new DFColorPicker.OnColorSelectedCallback()
-                {
-                    @Override
-                    public void colorSelected(int color)
-                    {
-                        setColor(color);
-                    }
-                });
+            int currentColor = Color.TRANSPARENT;
 
-                colorPicker.show(getFragmentManager(), ColorPickerTag);
-            }
+            if (colors.size() == 1)
+                currentColor = colors.get(0);
+
+            DFColorPicker colorPicker = DFColorPicker.newInstance(currentColor, selectedColor -> setColor(selectedColor));
+
+            colorPicker.show(getFragmentManager(), TAG_COLOR_PICKER);
         });
 
         sceneFab = view.findViewById(R.id.sceneFab);
-        sceneFab.setOnClickListener(new View.OnClickListener()
+        sceneFab.setOnClickListener(v ->
         {
-            @Override
-            public void onClick(View view)
-            {
-                // TODO: Each light has its own list of scenes, which will look like duplicates in the list if multiple lights are selected.
-                // Need to aggregate these duplicates into a single object.
-                List<Scene> scenes = ((AMain)getActivity()).getBridge().getBridgeState().getScenes();
+            List<Scene> scenes = getBridge().getBridgeState().getScenes();
 
-                DFScenePicker scenePicker = DFScenePicker.newInstance(lightObject.filterValidScenes(scenes), new DFScenePicker.OnSceneSelectedCallback()
-                {
-                    @Override
-                    public void sceneSelected(SceneGroup scene)
-                    {
-                        recallScene(scene);
-                    }
-                });
+            DFScenePicker scenePicker = DFScenePicker.newInstance(aggregateLight.filterValidScenes(scenes), scene -> recallScene(scene));
 
-                scenePicker.show(getFragmentManager(), ScenePickerTag);
-            }
+            scenePicker.show(getFragmentManager(), TAG_SCENE_PICKER);
         });
 
         brightnessSeekBar = view.findViewById(R.id.brightnessSeekBar);
@@ -241,17 +238,19 @@ public class FLightswitch extends Fragment
     {
         super.onStart();
 
-        ((AMain)getActivity()).addBridgeEventCallback(bridgeEventCallback);
-        ((AMain)getActivity()).getBridge().getBridgeConnection(BridgeConnectionType.LOCAL).getHeartbeatManager().startHeartbeat(BridgeStateCacheType.LIGHTS_AND_GROUPS, HEARTBEAT_INTERVAL);
+        getMainActivity().addBridgeEventCallback(bridgeEventCallback);
+        getBridge().getBridgeConnection(BridgeConnectionType.LOCAL).getHeartbeatManager().startHeartbeat(BridgeStateCacheType.LIGHTS_AND_GROUPS, HEARTBEAT_INTERVAL);
 
-        getView().post(new Runnable()
+        loadSelectedLights();
+        bindData();
+
+        getView().post(() ->
         {
-            @Override
-            public void run()
-            {
+            colorFabOffscreenTranslation = computeColorFabOffscreenTranslation();
+            sceneFabOffscreenTranslation = computeSceneFabOffscreenTranslation();
+            brightnessSeekBarOffscreenTranslation = computeBrightnessSeekBarOffscreenTranslation();
 
-                configureUI(false);
-            }
+            configureUI(false);
         });
     }
 
@@ -260,8 +259,7 @@ public class FLightswitch extends Fragment
     {
         super.onDetach();
 
-        ((AMain)getActivity()).removeBridgeEventCallback(bridgeEventCallback);
-        ((AMain)getActivity()).getBridge().getBridgeConnection(BridgeConnectionType.LOCAL).getHeartbeatManager().stopHeartbeat(BridgeStateCacheType.LIGHTS_AND_GROUPS);
+        getMainActivity().removeBridgeEventCallback(bridgeEventCallback);
     }
 
     //endregion
@@ -293,7 +291,7 @@ public class FLightswitch extends Fragment
     public void setBrightness(int brightness)
     {
         int scaledBrightness = (int)(254f * (float)brightness / 100f);
-        lightObject.setBrightness(scaledBrightness);
+        aggregateLight.setBrightness(scaledBrightness);
 
         LightState newState = new LightState();
         newState.setBrightness(scaledBrightness);
@@ -305,7 +303,7 @@ public class FLightswitch extends Fragment
      */
     public void setColor(int color)
     {
-        lightObject.setColor(color);
+        aggregateLight.setColor(color);
 
         HueColor hueColor = new HueColor(new HueColor.RGB(Color.red(color), Color.green(color), Color.blue(color)), null, null);
 
@@ -320,10 +318,10 @@ public class FLightswitch extends Fragment
     private void updateLightState(LightState newState)
     {
         responseProgressBar.setVisibility(View.VISIBLE);
-        lightObject.applyLightState(newState, BridgeConnectionType.LOCAL, new LightObject.LightObjectApplyStateCallback()
+        aggregateLight.applyLightState(newState, BridgeConnectionType.LOCAL, new AggregateLight.LightObjectApplyStateCallback()
         {
             @Override
-            public void onApplyCompleted(final List<LightObject.LightObjectApplyResults> results)
+            public void onApplyCompleted(final List<AggregateLight.LightObjectApplyResults> results)
             {
                 Log.i(TAG, "Light Object finished applying new state.");
                 getActivity().runOnUiThread(new Runnable()
@@ -334,12 +332,12 @@ public class FLightswitch extends Fragment
                         responseProgressBar.setVisibility(View.GONE);
 
                         // Force the bridge to send a refreshed state as soon as possible to make sure switch is responsive as possible.
-                        ((AMain)getActivity()).getBridge().getBridgeState().refresh(BridgeStateCacheType.LIGHTS_AND_GROUPS, BridgeConnectionType.LOCAL);
+                        getBridge().getBridgeState().refresh(BridgeStateCacheType.LIGHTS_AND_GROUPS, BridgeConnectionType.LOCAL);
 
-                        boolean anyErrors = results.stream().anyMatch(new Predicate<LightObject.LightObjectApplyResults>()
+                        boolean anyErrors = results.stream().anyMatch(new Predicate<AggregateLight.LightObjectApplyResults>()
                         {
                             @Override
-                            public boolean test(LightObject.LightObjectApplyResults lightObjectApplyResults)
+                            public boolean test(AggregateLight.LightObjectApplyResults lightObjectApplyResults)
                             {
                                 return lightObjectApplyResults.getReturnCode() != ReturnCode.SUCCESS;
                             }
@@ -379,10 +377,10 @@ public class FLightswitch extends Fragment
                     public void run()
                     {
                         responseProgressBar.setVisibility(View.GONE);
-                        lightObject.setColor(LightObject.COLOR_UNDEFINED);
+                        aggregateLight.setColor(AggregateLight.COLOR_UNDEFINED);
 
                         // Force the bridge to send a refreshed state as soon as possible to make sure switch is responsive as possible.
-                        ((AMain)getActivity()).getBridge().getBridgeState().refresh(BridgeStateCacheType.LIGHTS_AND_GROUPS, BridgeConnectionType.LOCAL);
+                        getBridge().getBridgeState().refresh(BridgeStateCacheType.LIGHTS_AND_GROUPS, BridgeConnectionType.LOCAL);
 
                         boolean anyErrors = results.stream().anyMatch(new Predicate<SceneGroup.SceneGroupRecallResult>()
                         {
@@ -411,21 +409,16 @@ public class FLightswitch extends Fragment
     /** Sets the UI's model data with the values from the currently selected lights. */
     private void bindData()
     {
-        on = lightObject.getOn();
+        on = aggregateLight.getOn();
 
-        int lightBrightness = lightObject.getBrightness();
+        int lightBrightness = aggregateLight.getBrightness();
 
-        if (lightBrightness == LightObject.BRIGHTNESS_UNDEFINED)
+        if (lightBrightness == AggregateLight.BRIGHTNESS_UNDEFINED)
             brightness = 100;
         else
             brightness = (int)(100 * (float)lightBrightness / 254f);
 
-        int lightColor = lightObject.getColor();
-
-        if (lightColor == LightObject.COLOR_UNDEFINED)
-            color = Color.valueOf(DEFAULT_COLOR);
-        else
-            color = Color.valueOf(lightColor);
+        colors = aggregateLight.getColors();
     }
 
     /** Configures the UI based on the state of the currently selected lights.
@@ -433,29 +426,32 @@ public class FLightswitch extends Fragment
      */
     private void configureUI(boolean animate)
     {
-        onButton.setEnabled(lightObject.hasLights());
-        onButton.setActivated(on);
-        onButton.setBackgroundTintList(ColorStateList.valueOf(lightObject.hasLights() ? color.toArgb() : Color.TRANSPARENT));
+        lightBackgroundView.setBackground(createLightBackgroundDrawable());
 
-        int onColor = ColorUtilities.getContrastColor(color) > 0 ? R.color.colorTextOnLight : R.color.colorTextOnDark;
+        onButton.setEnabled(aggregateLight.hasLights());
+        onButton.setActivated(on);
+
+        Color averageColor = ColorUtilities.averageColors(colors.stream().map(c -> Color.valueOf(c)).collect(Collectors.toList()));
+
+        int onColor = ColorUtilities.getContrastColor(averageColor) > 0 ? R.color.colorTextOnLight : R.color.colorTextOnDark;
         onButton.setTextColor(getResources().getColor(on ? onColor : R.color.colorTextOff, null));
 
-        offButton.setEnabled(lightObject.hasLights());
+        offButton.setEnabled(aggregateLight.hasLights());
         offButton.setTextColor(getResources().getColor(on ? R.color.colorTextOff : R.color.colorTextOnLight, null));
 
         brightnessSeekBar.setEnabled(on);
         brightnessSeekBar.setProgress(brightness);
 
         // Configure the light selection button.  It should display the name of the current light.
-        String name = lightObject.getName();
+        String name = aggregateLight.getName();
 
         switch (name)
         {
-            case LightObject.NONE:
+            case AggregateLight.NONE:
                 lightButton.setText(R.string.no_lights_selected);
                 break;
 
-            case LightObject.MULTIPLE:
+            case AggregateLight.MULTIPLE:
                 lightButton.setText(R.string.multiple_lights_selected);
                 break;
 
@@ -465,7 +461,7 @@ public class FLightswitch extends Fragment
         }
 
         colorFab.setEnabled(on);
-        colorFab.setVisibility(lightObject.getSupportsColors() ? View.VISIBLE : View.GONE);
+        colorFab.setVisibility(aggregateLight.getSupportsColors() ? View.VISIBLE : View.GONE);
 
         sceneFab.setEnabled(on);
 
@@ -485,10 +481,24 @@ public class FLightswitch extends Fragment
         }
     }
 
-    /** Animates the Color FAB.
-     * @param animationDuration The length of time of the animation.
-     */
-    private void animateColorFab(int animationDuration)
+    private Drawable createLightBackgroundDrawable()
+    {
+        Drawable drawable;
+
+        if (colors.size() > 1)
+        {
+            drawable = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, colors.stream().mapToInt(i -> i).toArray());
+        }
+        else
+        {
+            drawable = new ColorDrawable(colors.size() > 0 ? colors.get(0) : DEFAULT_COLOR);
+        }
+
+        return drawable;
+    }
+
+    /** Computes the translation needed for the color FAB to be just offscreen for animation purposes. */
+    private float computeColorFabOffscreenTranslation()
     {
         int[] location = new int[2];
         colorFab.getLocationOnScreen(location);
@@ -496,10 +506,30 @@ public class FLightswitch extends Fragment
         DisplayMetrics metrics = new DisplayMetrics();
         getActivity().getWindowManager().getDefaultDisplay().getMetrics(metrics);
 
-        ObjectAnimator animator = ObjectAnimator.ofFloat(colorFab, "translationX", on ? 0f : metrics.widthPixels - location[0]);
+        return metrics.widthPixels - location[0];
+    }
+
+    /** Animates the Color FAB.
+     * @param animationDuration The length of time of the animation.
+     */
+    private void animateColorFab(int animationDuration)
+    {
+        ObjectAnimator animator = ObjectAnimator.ofFloat(colorFab, "translationX", on ? 0f : colorFabOffscreenTranslation);
         animator.setDuration(animationDuration);
         animator.setInterpolator(new DecelerateInterpolator());
         animator.start();
+    }
+
+    /** Computes the translation needed for the scene FAB to be just offscreen for animation purposes. */
+    private float computeSceneFabOffscreenTranslation()
+    {
+        int[] location = new int[2];
+        sceneFab.getLocationOnScreen(location);
+
+        DisplayMetrics metrics = new DisplayMetrics();
+        getActivity().getWindowManager().getDefaultDisplay().getMetrics(metrics);
+
+        return metrics.widthPixels - location[0];
     }
 
     /** Animates the Scene FAB.
@@ -513,10 +543,19 @@ public class FLightswitch extends Fragment
         DisplayMetrics metrics = new DisplayMetrics();
         getActivity().getWindowManager().getDefaultDisplay().getMetrics(metrics);
 
-        ObjectAnimator animator = ObjectAnimator.ofFloat(sceneFab, "translationX", on ? 0f : metrics.widthPixels - location[0]);
+        ObjectAnimator animator = ObjectAnimator.ofFloat(sceneFab, "translationX", on ? 0f : sceneFabOffscreenTranslation);
         animator.setDuration(animationDuration);
         animator.setInterpolator(new DecelerateInterpolator());
         animator.start();
+    }
+
+    /** Computes the translation needed for the brightness seekbar to be just offscreen for animation purposes. */
+    private float computeBrightnessSeekBarOffscreenTranslation()
+    {
+        int[] location = new int[2];
+        brightnessLayout.getLocationOnScreen(location);
+
+        return -(location[0] + brightnessLayout.getWidth());
     }
 
     /** Animates the brightness seekbar.
@@ -527,10 +566,72 @@ public class FLightswitch extends Fragment
         int[] location = new int[2];
         brightnessLayout.getLocationOnScreen(location);
 
-        ObjectAnimator animator = ObjectAnimator.ofFloat(brightnessLayout, "translationX", on ? 0f : -(location[0] + brightnessLayout.getWidth()));
+        ObjectAnimator animator = ObjectAnimator.ofFloat(brightnessLayout, "translationX", on ? 0f : brightnessSeekBarOffscreenTranslation);
         animator.setDuration(animationDuration);
         animator.setInterpolator(new DecelerateInterpolator());
         animator.start();
+    }
+
+    //endregion
+
+
+    //region Storage
+
+    /** The string key that the currently selected {@link LightPoint}s are saved under. */
+    private static final String SK_SELECTED_LIGHTPOINTS = "_selected_lights";
+
+    /** The string key that the currently selected {@link Group}s are saved under. */
+    private static final String SK_SELECTED_GROUPS = "_selected_groups";
+
+
+    /** Saves the currently selected lights to the app's preferences storage. */
+    private void saveSelectedLights()
+    {
+        SharedPreferences preferences = getActivity().getPreferences(Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = preferences.edit();
+
+        Set<String> lightIds = new ArraySet<>();
+        Set<String> groupIds = new ArraySet<>();
+
+        for (LightPoint lightPoint : aggregateLight.getLightPoints())
+            lightIds.add(lightPoint.getIdentifier());
+
+        for (Group group : aggregateLight.getGroups())
+            groupIds.add(group.getIdentifier());
+
+        Bridge bridge = getBridge();
+        editor.putStringSet(bridge.getIdentifier() + SK_SELECTED_LIGHTPOINTS, lightIds);
+        editor.putStringSet(bridge.getIdentifier() + SK_SELECTED_GROUPS, groupIds);
+        editor.apply();
+    }
+
+    /** Loads a set of lights from the app's preferences and sets them as the currently selected lights. */
+    private void loadSelectedLights()
+    {
+        SharedPreferences preferences = getActivity().getPreferences(Context.MODE_PRIVATE);
+        Bridge bridge = getBridge();
+        BridgeState bridgeState = bridge.getBridgeState();
+
+        Set<String> lightIds = preferences.getStringSet(bridge.getIdentifier() + SK_SELECTED_LIGHTPOINTS, new ArraySet<String>());
+        Set<String> groupIds = preferences.getStringSet(bridge.getIdentifier() + SK_SELECTED_GROUPS, new ArraySet<String>());
+
+        aggregateLight = new AggregateLight();
+
+        for (String lightId : lightIds)
+        {
+            LightPoint lightPoint = bridgeState.getLightPoint(lightId);
+
+            if (lightPoint != null)
+                aggregateLight.addLightPoint(lightPoint);
+        }
+
+        for (String groupId : groupIds)
+        {
+            Group group = bridgeState.getGroup(groupId);
+
+            if (group != null)
+                aggregateLight.addLightGroup(group, bridgeState);
+        }
     }
 
     //endregion
@@ -540,6 +641,13 @@ public class FLightswitch extends Fragment
 
     private BridgeEventCallback bridgeEventCallback = new BridgeEventCallback()
     {
+        @Override
+        public void bridgeDisconnecting(Bridge bridge)
+        {
+            getBridge().getBridgeConnection(BridgeConnectionType.LOCAL).getHeartbeatManager().stopHeartbeat(BridgeStateCacheType.LIGHTS_AND_GROUPS);
+            saveSelectedLights();
+        }
+
         @Override
         public void bridgeDisconnected(Bridge bridge, boolean manualDisconnect, List<HueError> errors)
         {
@@ -557,9 +665,9 @@ public class FLightswitch extends Fragment
                 @Override
                 public void run()
                 {
-                    Bridge bridge = ((AMain)getActivity()).getBridge();
+                    Bridge bridge = getBridge();
 
-                    lightObject.updateLightState(bridge.getBridgeState());
+                    aggregateLight.updateLightState(bridge.getBridgeState());
 
                     bindData();
                     configureUI(true);

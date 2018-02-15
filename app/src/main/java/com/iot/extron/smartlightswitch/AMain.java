@@ -9,7 +9,10 @@ import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.design.widget.NavigationView;
 import android.support.v4.widget.DrawerLayout;
+import android.text.TextUtils;
+import android.transition.Slide;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
@@ -19,6 +22,7 @@ import com.iot.extron.smartlightswitch.bridgefinder.FBridgeFinder;
 import com.iot.extron.smartlightswitch.bridgefinder.FConnectToBridge;
 import com.iot.extron.smartlightswitch.lightswitch.DFColorPicker;
 import com.iot.extron.smartlightswitch.lightswitch.FLightswitch;
+import com.iot.extron.smartlightswitch.settings.FSettings;
 import com.iot.extron.smartlightswitch.utilities.TextUtilities;
 import com.philips.lighting.hue.sdk.wrapper.connection.BridgeConnection;
 import com.philips.lighting.hue.sdk.wrapper.connection.BridgeConnectionCallback;
@@ -109,10 +113,10 @@ public class AMain extends Activity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.a_main);
 
-        mainLayout = (ViewGroup)findViewById(R.id.mainLayout);
-        drawerLayout = (DrawerLayout)findViewById(R.id.DrawerLayout);
+        mainLayout = findViewById(R.id.mainLayout);
+        drawerLayout = findViewById(R.id.DrawerLayout);
 
-        navigationView = (NavigationView)findViewById(R.id.navigationView);
+        navigationView = findViewById(R.id.navigationView);
         navigationView.setNavigationItemSelectedListener(new NavigationView.OnNavigationItemSelectedListener()
         {
             @Override
@@ -123,6 +127,15 @@ public class AMain extends Activity
                     case R.id.disconnectBridge:
                         disconnectFromBridge();
                         goToBridgeFinder();
+                        drawerLayout.closeDrawers();
+                        return true;
+
+                    case R.id.settings:
+                        Fragment fragment = getFragmentManager().findFragmentByTag(FSettings.TAG);
+
+                        if (fragment == null)
+                            goToSettings();
+
                         drawerLayout.closeDrawers();
                         return true;
 
@@ -145,9 +158,9 @@ public class AMain extends Activity
 
         navigationHeaderView = navigationView.getHeaderView(0);
 
-        switchIpTextView = (TextView)navigationHeaderView.findViewById(R.id.switchIpTextView);
-        bridgeNameTextView = (TextView)navigationHeaderView.findViewById(R.id.bridgeNameTextView);
-        bridgeIpTextView = (TextView)navigationHeaderView.findViewById(R.id.bridgeIpTextView);
+        switchIpTextView = navigationHeaderView.findViewById(R.id.switchIpTextView);
+        bridgeNameTextView = navigationHeaderView.findViewById(R.id.bridgeNameTextView);
+        bridgeIpTextView = navigationHeaderView.findViewById(R.id.bridgeIpTextView);
 
         WifiManager wifiManager = (WifiManager)getSystemService(WIFI_SERVICE);
         String switchIp;
@@ -174,28 +187,40 @@ public class AMain extends Activity
             @Override
             public void bridgeInitialized(final Bridge bridge)
             {
-                runOnUiThread(new Runnable()
+                runOnUiThread(() ->
                 {
-                    @Override
-                    public void run()
-                    {
-                        bridgeNameTextView.setText(TextUtilities.getStringWithSub(getResources(), R.string.bridge_name, bridge.getName()));
-                        bridgeIpTextView.setText(TextUtilities.getStringWithSub(getResources(), R.string.ip_address, bridgeIp));
-                    }
+                    bridgeNameTextView.setText(TextUtilities.getStringWithSub(getResources(), R.string.bridge_name, bridge.getName()));
+                    bridgeIpTextView.setText(TextUtilities.getStringWithSub(getResources(), R.string.ip_address, bridgeIp));
                 });
             }
         });
 
-        KnownBridge lastUsedBridge = getLastUsedBridge();
 
-        if (lastUsedBridge == null)
+        if (savedInstanceState != null)
+            loadInstanceState(savedInstanceState);
+
+        // Check to see if a bridge IP was loaded from a stored state.  If it was, this indicates that the activity was destroyed while connected to the bridge,
+        // and we should silently reconnect to it.
+        if (!TextUtils.isEmpty(bridgeIp))
         {
-            goToBridgeFinder();
+            connectToBridge(bridgeIp);
         }
         else
         {
-            goToConnectToBridge(lastUsedBridge);
+            KnownBridge lastUsedBridge = getLastUsedBridge();
+
+            if (lastUsedBridge == null)
+                goToBridgeFinder();
+            else
+                goToConnectToBridge(lastUsedBridge);
         }
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState)
+    {
+        super.onSaveInstanceState(outState);
+        saveInstanceState(outState);
     }
 
     //endregion
@@ -269,6 +294,9 @@ public class AMain extends Activity
         {
             manualDisconnect = true;
             latestErrors.clear();
+
+            for (BridgeEventCallback callback : bridgeEventCallbacks)
+                callback.bridgeDisconnecting(bridge);
 
             bridge.disconnect();
             bridgeIp = null;
@@ -357,6 +385,54 @@ public class AMain extends Activity
 
         transaction.replace(R.id.mainLayout, frag);
         transaction.commit();
+    }
+
+    /** Creates a new {@link FSettings} and sets it as the current fragment on top of the stack.  When the user presses back on the settings page,
+     * the transaction is popped, establishing the previous fragment as the current one. */
+    private void goToSettings()
+    {
+        final String tag = "gotoSettings";
+
+        Fragment frag = FSettings.newInstance(new FSettings.SettingsEventCallback()
+        {
+            @Override
+            public void onBack()
+            {
+                getFragmentManager().popBackStack();
+            }
+        });
+
+        frag.setEnterTransition(new Slide(Gravity.END));
+        frag.setExitTransition(new Slide(Gravity.END));
+
+        FragmentTransaction transaction = getFragmentManager().beginTransaction();
+
+        transaction.add(R.id.mainLayout, frag, FSettings.TAG);
+        transaction.addToBackStack(tag);
+        transaction.commit();
+    }
+
+    //endregion
+
+
+    //region Instance State Management
+
+    private static final String STATE_BRIDGE_IP = "bridgeIp";
+
+    /** Saves the activity's instance state to a {@link Bundle}.
+     * @param bundle The {@link Bundle} to save to.
+     */
+    private void saveInstanceState(Bundle bundle)
+    {
+        bundle.putString(STATE_BRIDGE_IP, bridgeIp);
+    }
+
+    /** Loads the activity's instance state from a {@link Bundle}.
+     * @param bundle The {@link Bundle} to load from.
+     */
+    private void loadInstanceState(Bundle bundle)
+    {
+        bridgeIp = bundle.getString(STATE_BRIDGE_IP);
     }
 
     //endregion

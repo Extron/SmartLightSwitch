@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">SmartLightSwitch</string>
+    <string name="app_name">Hue SmartSwitch</string>
 
     <string name="switchName">Switch</string>
     <string name="bridge_name">Bridge: {0}</string>
@@ -45,4 +45,11 @@
     <string name="unexpected_disconnect_snack">Bridge disconnected unexpectedly.</string>
     <string name="reconnect">Reconnect</string>
 
+    <string name="screen_orientation">Screen Orientation</string>
+    <string-array name="screen_orientations">
+        <item>0°</item>
+        <item>90°</item>
+        <item>180°</item>
+        <item>270°</item>
+    </string-array>
 </resources>

@@ -10,7 +10,7 @@
     <item android:state_activated="false">
         <aapt:attr name="android:drawable">
             <shape android:shape="rectangle">
-                <solid android:color="#00000000" />
+                <solid android:color="@color/switchWindowBackground" />
             </shape>
         </aapt:attr>
     </item>

@@ -1,6 +1,8 @@
 package com.iot.extron.smartlightswitch;
 
 import android.app.Application;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.util.Log;
 import android.view.Display;
@@ -56,8 +58,11 @@ public class SLSApplication extends Application
 
         try
         {
+            SharedPreferences preferences = getSettingsPreferences();
+            int orientation = preferences.getInt(SETTINGS_SCREEN_ORIENTATION, ScreenManager.ROTATION_90);
+
             ScreenManager screenManager = new ScreenManager(Display.DEFAULT_DISPLAY);
-            screenManager.lockRotation(ScreenManager.ROTATION_90);
+            screenManager.lockRotation(orientation);
         }
         catch (NoClassDefFoundError e)
         {
@@ -66,4 +71,20 @@ public class SLSApplication extends Application
             Log.e(TAG, "ScreenManager class could not be found: " + e.getMessage());
         }
     }
+
+
+    //region Storage
+
+    private static final String SETTINGS_PREFERENCES = "settings";
+    public static final String SETTINGS_SCREEN_ORIENTATION = "screen_orientation";
+
+    /** Gets the {@link SharedPreferences} that app settings can be stored in.
+     * @return The app settings {@link SharedPreferences}.
+     */
+    public SharedPreferences getSettingsPreferences()
+    {
+        return getSharedPreferences(SETTINGS_PREFERENCES, Context.MODE_PRIVATE);
+    }
+
+    //endregion
 }

@@ -1,23 +1,18 @@
 package com.iot.extron.smartlightswitch.models;
 
 import android.graphics.Color;
-import android.util.Pair;
 
 import com.philips.lighting.hue.sdk.wrapper.connection.BridgeConnectionType;
 import com.philips.lighting.hue.sdk.wrapper.connection.BridgeResponseCallback;
 import com.philips.lighting.hue.sdk.wrapper.domain.Bridge;
 import com.philips.lighting.hue.sdk.wrapper.domain.BridgeState;
-import com.philips.lighting.hue.sdk.wrapper.domain.DomainObject;
-import com.philips.lighting.hue.sdk.wrapper.domain.DomainType;
 import com.philips.lighting.hue.sdk.wrapper.domain.HueError;
 import com.philips.lighting.hue.sdk.wrapper.domain.ReturnCode;
 import com.philips.lighting.hue.sdk.wrapper.domain.clip.ClipResponse;
 import com.philips.lighting.hue.sdk.wrapper.domain.device.light.LightPoint;
 import com.philips.lighting.hue.sdk.wrapper.domain.device.light.LightState;
-import com.philips.lighting.hue.sdk.wrapper.domain.device.light.LightType;
 import com.philips.lighting.hue.sdk.wrapper.domain.resource.Group;
 import com.philips.lighting.hue.sdk.wrapper.domain.resource.Scene;
-import com.philips.lighting.hue.sdk.wrapper.utilities.HueColor;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,17 +23,15 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-/** An object that wraps a heterogeneous list of {@link LightPoint}s and {@link com.philips.lighting.hue.sdk.wrapper.domain.resource.Group}s and aggregates
- * data and actions on the list as if they were a single light object.
- */
-public class LightObject
+/** Stores a list of {@link Light}s and aggregates data and actions on the list as if they were a single light object. */
+public class AggregateLight
 {
     //region Static Fields
 
-    /** The name that is returned by a {@link LightObject} if there are no lights contained within. */
+    /** The name that is returned by a {@link AggregateLight} if there are no lights contained within. */
     public static final String NONE = "none";
 
-    /** The name that is returned by a {@link LightObject} if there are multiple lights contained within. */
+    /** The name that is returned by a {@link AggregateLight} if there are multiple lights contained within. */
     public static final String MULTIPLE = "multiple";
 
     /** A brightness value that indicates that no valid brightness value has been defined for the light object. */
@@ -53,7 +46,7 @@ public class LightObject
     //region Fields
 
     /** The list of light points and groups that are encapsulated in the light object. */
-    private List<DomainObject> domainObjects = new ArrayList<>();
+    private List<Light> lights = new ArrayList<>();
 
     /** The current brightness of the light object, which will be set across all lights contained within. */
     private int brightness = BRIGHTNESS_UNDEFINED;
@@ -66,26 +59,19 @@ public class LightObject
 
     //region Property Getters/Setters
 
-    /** Gets the name of the light group.  If there is only one {@link LightPoint} or {@link Group} in the object, returns that name.
-     * If there are no object, returns <code>LightObject.NONE</code>.  If there are multiple objects, returns <code>LightObject.MULTIPLE</code>.
-     * @return The name of the contained object, or <code>LightObject.NONE</code> if none or <code>LightObject.MULTIPLE</code> if multiple.
+    /** Gets the name of the light group.  If there is only one {@link Light} in the object, returns that name.
+     * If there are no object, returns <code>AggregateLight.NONE</code>.  If there are multiple objects, returns <code>AggregateLight.MULTIPLE</code>.
+     * @return The name of the contained object, or <code>AggregateLight.NONE</code> if none or <code>AggregateLight.MULTIPLE</code> if multiple.
      */
     public String getName()
     {
-        switch (domainObjects.size())
+        switch (lights.size())
         {
             case 0:
                 return NONE;
 
             case 1:
-                DomainObject obj = domainObjects.get(0);
-
-                if (obj instanceof LightPoint)
-                    return ((LightPoint)obj).getName();
-                else if (obj instanceof Group)
-                    return ((Group)obj).getName();
-                else
-                    return NONE;
+                return lights.get(0).getName();
 
             default:
                 return MULTIPLE;
@@ -98,17 +84,12 @@ public class LightObject
      */
     public boolean getOn()
     {
-        return domainObjects.stream().anyMatch(new Predicate<DomainObject>()
+        return lights.stream().anyMatch(new Predicate<Light>()
         {
             @Override
-            public boolean test(DomainObject domainObject)
+            public boolean test(Light light)
             {
-                if (domainObject instanceof LightPoint)
-                    return ((LightPoint)domainObject).getLightState().isOn();
-                else if (domainObject instanceof  Group && ((Group)domainObject).getGroupState() != null)
-                    return ((Group)domainObject).getGroupState().isAnyOn();
-                else
-                    return false;
+                return light.getOn();
             }
         });
     }
@@ -118,39 +99,50 @@ public class LightObject
      */
     public boolean getSupportsColors()
     {
-        return domainObjects.stream().anyMatch(new Predicate<DomainObject>()
+        return lights.stream().anyMatch(new Predicate<Light>()
         {
             @Override
-            public boolean test(DomainObject domainObject)
+            public boolean test(Light light)
             {
-                if (domainObject instanceof LightPoint)
-                {
-                    LightType type = ((LightPoint)domainObject).getLightType();
-                    return (type == LightType.COLOR) || (type == LightType.COLOR_TEMPERATURE) || (type == LightType.EXTENDED_COLOR);
-                }
-                else if (domainObject instanceof  Group && ((Group)domainObject).getGroupState() != null)
-                {
-                    // TODO: Need to figure out best way to get light information for a group.
-                    return true;
-                }
-                else
-                {
-                    return false;
-                }
+                return light.getSupportsColors();
             }
         });
     }
 
-    /** Gets the brightness of the light object.  If there is only a single {@link LightPoint} contained, returns its brightness.  Otherwise, unless the brightness
-     * has been explicitly set on this light object, returns <code>LightObject.BRIGHTNESS_UNDEFINED</code>.
-     * @return The brightness of the light object if a valid brightness exists, or <code>LightObject.BRIGHTNESS_UNDEFINED</code> of one does not.
+    /** Gets the brightness of the light object.  If there is only a single {@link Light} contained that has a single brightness, returns its brightness.  Otherwise, unless the brightness
+     * has been explicitly set on this light object, returns {@link AggregateLight#BRIGHTNESS_UNDEFINED}.
+     * @return The brightness of the light object if a valid brightness exists, or {@link AggregateLight#BRIGHTNESS_UNDEFINED} of one does not.
      */
     public int getBrightness()
     {
-        if (domainObjects.size() == 1 && domainObjects.get(0) instanceof LightPoint)
-            return ((LightPoint)domainObjects.get(0)).getLightState().getBrightness();
-        else
-            return brightness;
+        switch (lights.size())
+        {
+            case 0:
+                return brightness;
+
+            case 1:
+                int lightBrightness = lights.get(0).getBrightness();
+                if (lightBrightness != Light.BRIGHTNESS_MULTIPLE)
+                    return lightBrightness;
+                else
+                    return brightness;
+
+            default:
+                List<Integer> uniqueBrightnesses = new ArrayList<>();
+
+                for (Light light : lights)
+                {
+                    int brightness = light.getBrightness();
+
+                    if (!uniqueBrightnesses.contains(brightness))
+                        uniqueBrightnesses.add(brightness);
+                }
+
+                if (uniqueBrightnesses.size() == 1 && uniqueBrightnesses.get(0) != Light.BRIGHTNESS_MULTIPLE)
+                    return uniqueBrightnesses.get(0);
+                else
+                    return brightness;
+        }
     }
 
     /** Sets the brightness of the light object.  Note that this does not apply the brightness to the contained lights, but merely stores
@@ -162,21 +154,81 @@ public class LightObject
         this.brightness = brightness;
     }
 
-    /** Gets the color of the light object.  If there is only a single {@link LightPoint} contained, returns its color.  Otherwise, unless the color
-     * has been explicitly set on this light object, returns <code>LightObject.COLOR_UNDEFINED</code>.
-     * @return The color of the light object if a valid color exists, or <code>LightObject.COLOR_UNDEFINED</code> of one does not.
+    /** Gets the color of the light object.  If there is only a single {@link Light} contained and it does not have multiple colors, returns its color.  Otherwise, unless the color
+     * has been explicitly set on this light object, returns {@link AggregateLight#COLOR_UNDEFINED}.
+     * @return The color of the light object if a valid color exists, or {@link AggregateLight#COLOR_UNDEFINED} if one does not.
      */
     public int getColor()
     {
-        if (domainObjects.size() == 1 && domainObjects.get(0) instanceof LightPoint)
+        switch (lights.size())
         {
-            HueColor.RGB rgb = ((LightPoint) domainObjects.get(0)).getLightState().getColor().getRGB();
-            return Color.argb(255, rgb.r, rgb.g, rgb.b);
+            case 0:
+                return color;
+
+            case 1:
+                int lightColor = lights.get(0).getColor();
+
+                if (color != Light.COLOR_MULTIPLE)
+                    return lightColor;
+                else
+                    return color;
+
+            default:
+                List<Integer> uniqueColors = new ArrayList<>();
+
+                for (Light light : lights)
+                {
+                    int color = light.getColor();
+
+                    if (!uniqueColors.contains(color))
+                        uniqueColors.add(color);
+                }
+
+                if (uniqueColors.size() == 1 && uniqueColors.get(0) != Light.COLOR_MULTIPLE)
+                    return uniqueColors.get(0);
+                else
+                    return color;
         }
-        else
+    }
+
+    /** Gets a list of all unique colors of the lights contained within.  Colors are sorted by their HSV value.
+     * @return A list of unique colors of the contained lights.
+     */
+    public List<Integer> getColors()
+    {
+        List<Integer> colors = new ArrayList<>();
+
+        for (Light light : lights)
         {
-            return color;
+            List<Integer> lightColors = light.getColors();
+
+            for (int lightColor : lightColors)
+            {
+                if (!colors.contains(lightColor))
+                    colors.add(lightColor);
+            }
         }
+
+        colors.sort((c1, c2) ->
+        {
+            float[] c1HSV = new float[3];
+            float[] c2HSV = new float[3];
+            Color.colorToHSV(c1, c1HSV);
+            Color.colorToHSV(c2, c2HSV);
+
+            if (c1HSV[0] != c2HSV[0])
+                return c1HSV[0] < c2HSV[0] ? -1 : 1;
+
+            if (c1HSV[1] != c2HSV[1])
+                return c1HSV[1] < c2HSV[1] ? -1 : 1;
+
+            if (c1HSV[2] != c2HSV[2])
+                return c1HSV[2] < c2HSV[2] ? -1 : 1;
+
+            return 0;
+        });
+
+        return colors;
     }
 
     /** Sets the color of the light object.  Note that this does not apply the color to the contained lights, but merely stores
@@ -198,7 +250,7 @@ public class LightObject
      */
     public void addLightPoint(LightPoint lightPoint)
     {
-        domainObjects.add(lightPoint);
+        lights.add(new SingleLight(lightPoint));
     }
 
     /** Adds a list of {@link LightPoint}s to the light object.
@@ -206,23 +258,27 @@ public class LightObject
      */
     public void addLightPoints(List<LightPoint> lightPoints)
     {
-        domainObjects.addAll(lightPoints);
+        for (LightPoint lightPoint : lightPoints)
+            lights.add(new SingleLight(lightPoint));
     }
 
     /** Adds a {@link Group} to the light object.
      * @param lightGroup The {@link Group} to add.
+     * @param bridgeState The bridge state that the group's contained lights are in.
      */
-    public void addLightGroup(Group lightGroup)
+    public void addLightGroup(Group lightGroup, BridgeState bridgeState)
     {
-        domainObjects.add(lightGroup);
+        lights.add(new GroupLight(lightGroup, bridgeState));
     }
 
     /** Adds a list of {@link Group}s to the light object.
      * @param lightGroups The {@link Group}s to add.
+     * @param bridgeState The bridge state that the groups' contained lights are in.
      */
-    public void addLightGroups(List<Group> lightGroups)
+    public void addLightGroups(List<Group> lightGroups, BridgeState bridgeState)
     {
-        domainObjects.addAll(lightGroups);
+        for (Group lightGroup : lightGroups)
+            lights.add(new GroupLight(lightGroup, bridgeState));
     }
 
     /** Gets all of the {@link LightPoint}s within the light object.
@@ -230,19 +286,19 @@ public class LightObject
      */
     public List<LightPoint> getLightPoints()
     {
-        return domainObjects.stream().filter(new Predicate<DomainObject>()
+        return lights.stream().filter(new Predicate<Light>()
         {
             @Override
-            public boolean test(DomainObject domainObject)
+            public boolean test(Light light)
             {
-                return domainObject instanceof LightPoint;
+                return light instanceof SingleLight;
             }
-        }).map(new Function<DomainObject, LightPoint>()
+        }).map(new Function<Light, LightPoint>()
         {
             @Override
-            public LightPoint apply(DomainObject domainObject)
+            public LightPoint apply(Light light)
             {
-                return (LightPoint)domainObject;
+                return ((SingleLight)light).getLightPoint();
             }
         }).collect(Collectors.<LightPoint>toList());
     }
@@ -252,19 +308,19 @@ public class LightObject
      */
     public List<Group> getGroups()
     {
-        return domainObjects.stream().filter(new Predicate<DomainObject>()
+        return lights.stream().filter(new Predicate<Light>()
         {
             @Override
-            public boolean test(DomainObject domainObject)
+            public boolean test(Light light)
             {
-                return domainObject instanceof Group;
+                return light instanceof GroupLight;
             }
-        }).map(new Function<DomainObject, Group>()
+        }).map(new Function<Light, Group>()
         {
             @Override
-            public Group apply(DomainObject domainObject)
+            public Group apply(Light light)
             {
-                return (Group)domainObject;
+                return ((GroupLight)light).getGroup();
             }
         }).collect(Collectors.<Group>toList());
     }
@@ -273,14 +329,19 @@ public class LightObject
 
 
 
+    //region Light States
+
     /** Gets whether this light object contains any lights.
      * @return Returns <code>true</code> if there are lights, <code>false</code> otherwise.
      */
     public boolean hasLights()
     {
-        return domainObjects.size() > 0;
+        return lights.size() > 0;
     }
 
+    /** Updates the light states of all contained lights.
+     * @param bridgeState The bridge state that contains the updated light states.
+     */
     public void updateLightState(BridgeState bridgeState)
     {
         List<String> lightIds = getLightPoints().stream().map(new Function<LightPoint, String>()
@@ -301,13 +362,13 @@ public class LightObject
             }
         }).collect(Collectors.<String>toList());
 
-        domainObjects.clear();
+        lights.clear();
 
         for (String id : lightIds)
             addLightPoint(bridgeState.getLight(id));
 
         for (String id : groupIds)
-            addLightGroup(bridgeState.getGroup(id));
+            addLightGroup(bridgeState.getGroup(id), bridgeState);
     }
 
     /** Applies a new {@link LightState} to all lights contained in this light object.
@@ -317,46 +378,27 @@ public class LightObject
      */
     public void applyLightState(LightState newState, BridgeConnectionType connectionType, final LightObjectApplyStateCallback callback)
     {
-        final AtomicInteger latch = new AtomicInteger(domainObjects.size());
-        final LightObjectApplyResults[] results = new LightObjectApplyResults[domainObjects.size()];
+        final AtomicInteger latch = new AtomicInteger(lights.size());
+        final LightObjectApplyResults[] results = new LightObjectApplyResults[lights.size()];
 
-        for (int i = 0; i < domainObjects.size(); i++)
+        for (int i = 0; i < lights.size(); i++)
         {
-            final DomainObject obj = domainObjects.get(i);
+            final Light light = lights.get(i);
             final int index = i;
 
-            if (obj instanceof LightPoint)
+            light.applyLightState(newState, connectionType, new BridgeResponseCallback()
             {
-                ((LightPoint)obj).updateState(newState, connectionType, new BridgeResponseCallback()
+                @Override
+                public void handleCallback(Bridge bridge, ReturnCode returnCode, List<ClipResponse> responses, List<HueError> errors)
                 {
-                    @Override
-                    public void handleCallback(Bridge bridge, ReturnCode returnCode, List<ClipResponse> responses, List<HueError> errors)
-                    {
-                        results[index] = new LightObjectApplyResults(obj, returnCode, errors);
+                    results[index] = new LightObjectApplyResults(light, returnCode, errors);
 
-                        int current = latch.decrementAndGet();
+                    int current = latch.decrementAndGet();
 
-                        if (current == 0)
-                            callback.onApplyCompleted(Arrays.asList(results));
-                    }
-                });
-            }
-            else if (obj instanceof Group)
-            {
-                ((Group)obj).apply(newState, connectionType, new BridgeResponseCallback()
-                {
-                    @Override
-                    public void handleCallback(Bridge bridge, ReturnCode returnCode, List<ClipResponse> responses, List<HueError> errors)
-                    {
-                        results[index] = new LightObjectApplyResults(obj, returnCode, errors);
-
-                        int current = latch.decrementAndGet();
-
-                        if (current == 0)
-                            callback.onApplyCompleted(Arrays.asList(results));
-                    }
-                });
-            }
+                    if (current == 0)
+                        callback.onApplyCompleted(Arrays.asList(results));
+                }
+            });
         }
     }
 
@@ -371,24 +413,12 @@ public class LightObject
             @Override
             public boolean test(final Scene scene)
             {
-                return domainObjects.stream().anyMatch(new Predicate<DomainObject>()
+                return lights.stream().anyMatch(new Predicate<Light>()
                 {
                     @Override
-                    public boolean test(DomainObject domainObject)
+                    public boolean test(Light light)
                     {
-                        if (domainObject instanceof LightPoint)
-                        {
-                            return scene.getLightIds().contains(((LightPoint) domainObject).getIdentifier());
-                        }
-                        else if (domainObject instanceof Group)
-                        {
-                            for (String id : ((Group)domainObject).getLightIds())
-                            {
-                                if (scene.getLightIds().contains(id))
-                                    return true;
-                            }
-                        }
-                        return false;
+                        return light.isSceneValid(scene);
                     }
                 });
             }
@@ -411,27 +441,32 @@ public class LightObject
         return sceneGroups;
     }
 
+    /** A callback that receives an event when all lights have responded to applying a new light state. */
     public interface LightObjectApplyStateCallback
     {
+        /** Raised when all lights have responded to applying the new light state.
+         * @param results A list of responses from each light.
+         */
         public void onApplyCompleted(List<LightObjectApplyResults> results);
     }
 
+    /** Stores the response of a light to applying a new light state. */
     public class LightObjectApplyResults
     {
-        DomainObject domainObject;
+        Light light;
         ReturnCode returnCode;
         List<HueError> errors;
 
-        private LightObjectApplyResults(DomainObject domainObject, ReturnCode returnCode, List<HueError> errors)
+        private LightObjectApplyResults(Light light, ReturnCode returnCode, List<HueError> errors)
         {
-            this.domainObject = domainObject;
+            this.light = light;
             this.returnCode = returnCode;
             this.errors = errors;
         }
 
-        public DomainObject getObject()
+        public Light getLight()
         {
-            return domainObject;
+            return light;
         }
 
         public ReturnCode getReturnCode()
@@ -444,4 +479,6 @@ public class LightObject
             return errors;
         }
     }
+
+    //endregion
 }

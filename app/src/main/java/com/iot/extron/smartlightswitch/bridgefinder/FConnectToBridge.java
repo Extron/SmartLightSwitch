@@ -11,6 +11,7 @@ import android.widget.TextView;
 
 import java.util.List;
 
+import com.iot.extron.smartlightswitch.FBase;
 import com.philips.lighting.hue.sdk.wrapper.domain.Bridge;
 import com.philips.lighting.hue.sdk.wrapper.domain.HueError;
 
@@ -23,7 +24,7 @@ import com.iot.extron.smartlightswitch.R;
 /**
  * A {@link Fragment} that manages connecting to a bridge.
  */
-public class FConnectToBridge extends Fragment
+public class FConnectToBridge extends FBase
 {
     //region Static Fields
 
@@ -96,86 +97,60 @@ public class FConnectToBridge extends Fragment
     {
         View view = inflater.inflate(R.layout.f_connecttobridge, container, false);
 
-        progressLayout = (ViewGroup)view.findViewById(R.id.progressLayout);
-        connectFailedLayout = (ViewGroup)view.findViewById(R.id.connectFailedLayout);
-        connectErrorLayout = (ViewGroup)view.findViewById(R.id.connectErrorLayout);
+        progressLayout = view.findViewById(R.id.progressLayout);
+        connectFailedLayout = view.findViewById(R.id.connectFailedLayout);
+        connectErrorLayout = view.findViewById(R.id.connectErrorLayout);
 
-        connectingTextView = (TextView)view.findViewById(R.id.connectingTextView);
+        connectingTextView = view.findViewById(R.id.connectingTextView);
         connectingTextView.setText(getResources().getString(R.string.connecting_to_bridge).replace("{0}", bridgeName).replace("{1}", bridgeIp));
 
-        statusTextView = (TextView)view.findViewById(R.id.statusTextView);
+        statusTextView = view.findViewById(R.id.statusTextView);
 
-        failedToConnectTextView = (TextView)view.findViewById(R.id.failedToConnectTextView);
+        failedToConnectTextView = view.findViewById(R.id.failedToConnectTextView);
         failedToConnectTextView.setText(getResources().getString(R.string.failed_to_connect).replace("{0}", bridgeName).replace("{1}", bridgeIp));
 
-        connectionErrorTextView = (TextView)view.findViewById(R.id.connectionErrorTextView);
+        connectionErrorTextView = view.findViewById(R.id.connectionErrorTextView);
         connectionErrorTextView.setText(getResources().getString(R.string.error_on_connect).replace("{0}", bridgeName).replace("{1}", bridgeIp));
 
-        cancelButton = (Button)view.findViewById(R.id.cancelButton);
-        cancelButton.setOnClickListener(new View.OnClickListener()
+        cancelButton = view.findViewById(R.id.cancelButton);
+        cancelButton.setOnClickListener(v ->
         {
-            @Override
-            public void onClick(View view)
-            {
-                ((AMain)getActivity()).disconnectFromBridge();
+            getMainActivity().disconnectFromBridge();
 
-                if (connectToBridgeCallback != null)
-                {
-                    connectToBridgeCallback.cancelled();
-                }
-            }
+            if (connectToBridgeCallback != null)
+                connectToBridgeCallback.cancelled();
         });
 
-        failedBackButton = (Button)view.findViewById(R.id.failedBackButton);
-        failedBackButton.setOnClickListener(new View.OnClickListener()
+        failedBackButton = view.findViewById(R.id.failedBackButton);
+        failedBackButton.setOnClickListener(v ->
         {
-            @Override
-            public void onClick(View view)
-            {
-                if (connectToBridgeCallback != null)
-                {
-                    connectToBridgeCallback.failed();
-                }
-            }
+            if (connectToBridgeCallback != null)
+                connectToBridgeCallback.failed();
         });
 
-        failedTryAgainButton = (Button)view.findViewById(R.id.failedTryAgainButton);
-        failedTryAgainButton.setOnClickListener(new View.OnClickListener()
+        failedTryAgainButton = view.findViewById(R.id.failedTryAgainButton);
+        failedTryAgainButton.setOnClickListener(v ->
         {
-            @Override
-            public void onClick(View view)
-            {
-                ((AMain)getActivity()).reconnectToBridge();
+            getMainActivity().reconnectToBridge();
 
-                progressLayout.setVisibility(View.VISIBLE);
-                connectFailedLayout.setVisibility(View.GONE);
-            }
+            progressLayout.setVisibility(View.VISIBLE);
+            connectFailedLayout.setVisibility(View.GONE);
         });
 
-        errorBackButton = (Button)view.findViewById(R.id.errorBackButton);
-        errorBackButton.setOnClickListener(new View.OnClickListener()
+        errorBackButton = view.findViewById(R.id.errorBackButton);
+        errorBackButton.setOnClickListener(v ->
         {
-            @Override
-            public void onClick(View view)
-            {
-                if (connectToBridgeCallback != null)
-                {
-                    connectToBridgeCallback.failed();
-                }
-            }
+            if (connectToBridgeCallback != null)
+                connectToBridgeCallback.failed();
         });
 
-        errorTryAgainButton = (Button)view.findViewById(R.id.errorTryAgainButton);
-        errorTryAgainButton.setOnClickListener(new View.OnClickListener()
+        errorTryAgainButton = view.findViewById(R.id.errorTryAgainButton);
+        errorTryAgainButton.setOnClickListener(v ->
         {
-            @Override
-            public void onClick(View view)
-            {
-                ((AMain)getActivity()).reconnectToBridge();
+            getMainActivity().reconnectToBridge();
 
-                progressLayout.setVisibility(View.VISIBLE);
-                connectErrorLayout.setVisibility(View.GONE);
-            }
+            progressLayout.setVisibility(View.VISIBLE);
+            connectErrorLayout.setVisibility(View.GONE);
         });
 
         return view;
@@ -194,7 +169,7 @@ public class FConnectToBridge extends Fragment
     {
         super.onDetach();
 
-        ((AMain)getActivity()).removeBridgeEventCallback(bridgeEventCallback);
+        getMainActivity().removeBridgeEventCallback(bridgeEventCallback);
     }
 
     //endregion
