@@ -16,16 +16,12 @@
   ~ along with this program.  If not, see <http://www.gnu.org/licenses/>
   -->
 
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:paddingStart="@dimen/screenEdgeMarginHorizontal"
-    android:paddingEnd="@dimen/screenEdgeMarginHorizontal">
-    <TextView
-        android:id="@+id/headerTextView"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="[Header]"
-        android:textAppearance="?android:attr/textAppearanceMedium"/>
-</LinearLayout>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:type="linear"
+        android:startColor="#FFFFFFFF"
+        android:endColor="#00000000"
+        android:centerX="0.5"
+        android:centerColor="#00000000"/>
+</shape>

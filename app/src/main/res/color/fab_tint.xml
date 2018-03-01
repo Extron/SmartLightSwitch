@@ -16,16 +16,7 @@
   ~ along with this program.  If not, see <http://www.gnu.org/licenses/>
   -->
 
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:paddingStart="@dimen/screenEdgeMarginHorizontal"
-    android:paddingEnd="@dimen/screenEdgeMarginHorizontal">
-    <TextView
-        android:id="@+id/headerTextView"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="[Header]"
-        android:textAppearance="?android:attr/textAppearanceMedium"/>
-</LinearLayout>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_enabled="false" android:color="@color/colorControlDisabled"/>
+    <item android:color="@color/colorAccent"/>
+</selector>
