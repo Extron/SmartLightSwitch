@@ -298,6 +298,14 @@ public class AggregateLight
             lights.add(new GroupLight(lightGroup, bridgeState));
     }
 
+    /** Gets all of the {@link Light}s in the aggregate light.
+     * @return The list of {@link Light}s.
+     */
+    public List<Light> getLights()
+    {
+        return lights;
+    }
+
     /** Gets all of the {@link LightPoint}s within the light object.
      * @return A list of {@link LightPoint}s.
      */

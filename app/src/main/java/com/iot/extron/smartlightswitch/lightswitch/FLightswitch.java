@@ -27,6 +27,8 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
 import android.util.ArraySet;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -35,8 +37,10 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.SeekBar;
+import android.widget.Switch;
 import android.widget.TextView;
 
 import java.util.ArrayList;
@@ -46,12 +50,15 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import com.iot.extron.smartlightswitch.models.AggregateLight;
+import com.iot.extron.smartlightswitch.models.Light;
 import com.philips.lighting.hue.sdk.wrapper.connection.BridgeConnectionType;
+import com.philips.lighting.hue.sdk.wrapper.connection.BridgeResponseCallback;
 import com.philips.lighting.hue.sdk.wrapper.connection.BridgeStateCacheType;
 import com.philips.lighting.hue.sdk.wrapper.domain.Bridge;
 import com.philips.lighting.hue.sdk.wrapper.domain.BridgeState;
 import com.philips.lighting.hue.sdk.wrapper.domain.HueError;
 import com.philips.lighting.hue.sdk.wrapper.domain.ReturnCode;
+import com.philips.lighting.hue.sdk.wrapper.domain.clip.ClipResponse;
 import com.philips.lighting.hue.sdk.wrapper.domain.device.light.LightPoint;
 import com.philips.lighting.hue.sdk.wrapper.domain.device.light.LightState;
 import com.philips.lighting.hue.sdk.wrapper.domain.resource.Group;
@@ -109,6 +116,8 @@ public class FLightswitch extends FBase
     ViewGroup brightnessLayout;
     TextView brightnessTextView;
     SeekBar brightnessSeekBar;
+    RecyclerView lightsBottomsheetRecyclerView;
+    LightsRVAdapter lightsBottomsheetAdapter;
 
     float sceneFabOffscreenTranslation;
     float colorFabOffscreenTranslation;
@@ -141,65 +150,47 @@ public class FLightswitch extends FBase
         lightBackgroundView = view.findViewById(R.id.lightBackgroundView);
 
         onButton = view.findViewById(R.id.onButton);
-        onButton.setOnClickListener(new View.OnClickListener()
-        {
-            @Override
-            public void onClick(View view)
-            {
-                turnOn();
-            }
-        });
+        onButton.setOnClickListener(v -> turnOn());
 
         offButton = view.findViewById(R.id.offButton);
-        offButton.setOnClickListener(new View.OnClickListener()
-        {
-            @Override
-            public void onClick(View view)
-            {
-                turnOff();
-            }
-        });
+        offButton.setOnClickListener(v -> turnOff());
 
         lightButton = view.findViewById(R.id.lightButton);
-        lightButton.setOnClickListener(new View.OnClickListener()
+        lightButton.setOnClickListener(v ->
         {
-            @Override
-            public void onClick(View view)
+            final BridgeState bridgeState = getBridge().getBridgeState();
+            List<LightPoint> allLights = bridgeState.getLights();
+            List<Group> allGroups = bridgeState.getGroups();
+            List<LightPoint> currentLights = aggregateLight.getLightPoints();
+            List<Group> currentGroups = aggregateLight.getGroups();
+
+            List<Integer> selectedLights = new ArrayList<>();
+            List<Integer> selectedGroups = new ArrayList<>();
+
+            for (LightPoint light : currentLights)
+                selectedLights.add(allLights.indexOf(light));
+
+            for (Group group : currentGroups)
+                selectedGroups.add(allGroups.indexOf(group));
+
+            DFLightPicker lightPicker = DFLightPicker.newInstance(allLights, selectedLights, allGroups, selectedGroups, new DFLightPicker.OnLightsSelectedCallback()
             {
-                final BridgeState bridgeState = getBridge().getBridgeState();
-                List<LightPoint> allLights = bridgeState.getLights();
-                List<Group> allGroups = bridgeState.getGroups();
-                List<LightPoint> currentLights = aggregateLight.getLightPoints();
-                List<Group> currentGroups = aggregateLight.getGroups();
-
-                List<Integer> selectedLights = new ArrayList<>();
-                List<Integer> selectedGroups = new ArrayList<>();
-
-                for (LightPoint light : currentLights)
-                    selectedLights.add(allLights.indexOf(light));
-
-                for (Group group : currentGroups)
-                    selectedGroups.add(allGroups.indexOf(group));
-
-                DFLightPicker lightPicker = DFLightPicker.newInstance(allLights, selectedLights, allGroups, selectedGroups, new DFLightPicker.OnLightsSelectedCallback()
+                @Override
+                public void onLightsSelected(List<LightPoint> selectedLights, List<Group> selectedGroups)
                 {
-                    @Override
-                    public void onLightsSelected(List<LightPoint> selectedLights, List<Group> selectedGroups)
-                    {
-                        aggregateLight = new AggregateLight();
-                        aggregateLight.addLightPoints(selectedLights);
-                        aggregateLight.addLightGroups(selectedGroups, bridgeState);
+                    aggregateLight = new AggregateLight();
+                    aggregateLight.addLightPoints(selectedLights);
+                    aggregateLight.addLightGroups(selectedGroups, bridgeState);
 
-                        saveSelectedLights();
-                        bindData();
-                        configureUI(false);
+                    saveSelectedLights();
+                    bindData();
+                    configureUI(false);
 
-                        getBridge().getBridgeState().refresh(BridgeStateCacheType.LIGHTS_AND_GROUPS, BridgeConnectionType.LOCAL);
-                    }
-                });
+                    getBridge().getBridgeState().refresh(BridgeStateCacheType.LIGHTS_AND_GROUPS, BridgeConnectionType.LOCAL);
+                }
+            });
 
-                lightPicker.show(getFragmentManager(), TAG_LIGHT_PICKER);
-            }
+            lightPicker.show(getFragmentManager(), TAG_LIGHT_PICKER);
         });
 
         colorFab = view.findViewById(R.id.colorFab);
@@ -246,6 +237,12 @@ public class FLightswitch extends FBase
                 setBrightness(seekBar.getProgress());
             }
         });
+
+        lightsBottomsheetRecyclerView = view.findViewById(R.id.lightsBottomsheetRecyclerView);
+        lightsBottomsheetRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
+
+        lightsBottomsheetAdapter = new LightsRVAdapter(new ArrayList<>());
+        lightsBottomsheetRecyclerView.setAdapter(lightsBottomsheetAdapter);
 
         return view;
     }
@@ -335,35 +332,49 @@ public class FLightswitch extends FBase
     private void updateLightState(LightState newState)
     {
         responseProgressBar.setVisibility(View.VISIBLE);
-        aggregateLight.applyLightState(newState, BridgeConnectionType.LOCAL, new AggregateLight.LightObjectApplyStateCallback()
+        aggregateLight.applyLightState(newState, BridgeConnectionType.LOCAL, results ->
+        {
+            Log.i(TAG, "AggregateLight finished applying new state.");
+            getActivity().runOnUiThread(() ->
+            {
+                responseProgressBar.setVisibility(View.GONE);
+
+                // Force the bridge to send a refreshed state as soon as possible to make sure switch is responsive as possible.
+                getBridge().getBridgeState().refresh(BridgeStateCacheType.LIGHTS_AND_GROUPS, BridgeConnectionType.LOCAL);
+
+                boolean anyErrors = results.stream().anyMatch(lightObjectApplyResults -> lightObjectApplyResults.getReturnCode() != ReturnCode.SUCCESS);
+
+                if (anyErrors)
+                {
+                    Snackbar.make(((AMain)getActivity()).getLayoutForSnackbar(), R.string.could_not_connect_light, Snackbar.LENGTH_LONG).show();
+                }
+            });
+        });
+    }
+
+    /** Updates the state of a single {@link Light}.
+     * @param light The {@link Light} to update.
+     * @param newState The {@link LightState} to update with.
+     */
+    private void updateLightState(Light light, LightState newState)
+    {
+        responseProgressBar.setVisibility(View.VISIBLE);
+        light.applyLightState(newState, BridgeConnectionType.LOCAL, new BridgeResponseCallback()
         {
             @Override
-            public void onApplyCompleted(final List<AggregateLight.LightObjectApplyResults> results)
+            public void handleCallback(Bridge bridge, ReturnCode returnCode, List<ClipResponse> responses, List<HueError> errors)
             {
-                Log.i(TAG, "Light Object finished applying new state.");
-                getActivity().runOnUiThread(new Runnable()
+                Log.i(TAG, "Light finished applying new state.");
+                getActivity().runOnUiThread(() ->
                 {
-                    @Override
-                    public void run()
+                    responseProgressBar.setVisibility(View.GONE);
+
+                    // Force the bridge to send a refreshed state as soon as possible to make sure switch is responsive as possible.
+                    getBridge().getBridgeState().refresh(BridgeStateCacheType.LIGHTS_AND_GROUPS, BridgeConnectionType.LOCAL);
+
+                    if (returnCode != ReturnCode.SUCCESS)
                     {
-                        responseProgressBar.setVisibility(View.GONE);
-
-                        // Force the bridge to send a refreshed state as soon as possible to make sure switch is responsive as possible.
-                        getBridge().getBridgeState().refresh(BridgeStateCacheType.LIGHTS_AND_GROUPS, BridgeConnectionType.LOCAL);
-
-                        boolean anyErrors = results.stream().anyMatch(new Predicate<AggregateLight.LightObjectApplyResults>()
-                        {
-                            @Override
-                            public boolean test(AggregateLight.LightObjectApplyResults lightObjectApplyResults)
-                            {
-                                return lightObjectApplyResults.getReturnCode() != ReturnCode.SUCCESS;
-                            }
-                        });
-
-                        if (anyErrors)
-                        {
-                            Snackbar.make(((AMain)getActivity()).getLayoutForSnackbar(), R.string.could_not_connect_light, Snackbar.LENGTH_LONG).show();
-                        }
+                        Snackbar.make(((AMain)getActivity()).getLayoutForSnackbar(), R.string.could_not_connect_light, Snackbar.LENGTH_LONG).show();
                     }
                 });
             }
@@ -376,45 +387,37 @@ public class FLightswitch extends FBase
     private void recallScene(SceneGroup scene)
     {
         responseProgressBar.setVisibility(View.VISIBLE);
-        scene.recallScenes(BridgeConnectionType.LOCAL, new SceneGroup.SceneGroupRecallCallback()
+        scene.recallScenes(BridgeConnectionType.LOCAL, results ->
         {
-            @Override
-            public void onRecallCompleted(final List<SceneGroup.SceneGroupRecallResult> results)
+            StringBuilder codesStr = new StringBuilder().append("\n");
+
+            for (SceneGroup.SceneGroupRecallResult result : results)
+                codesStr.append(result.getScene().getName()).append("(").append(result.getScene().getIdentifier()).append("): ").append(result.getReturnCode()).append("\n");
+
+            Log.i(TAG, "Scene group finished recalling with return codes: " + codesStr.toString());
+
+            getActivity().runOnUiThread(() ->
             {
-                StringBuilder codesStr = new StringBuilder().append("\n");
+                responseProgressBar.setVisibility(View.GONE);
+                aggregateLight.setColor(AggregateLight.COLOR_UNDEFINED);
 
-                for (SceneGroup.SceneGroupRecallResult result : results)
-                    codesStr.append(result.getScene().getName()).append("(").append(result.getScene().getIdentifier()).append("): ").append(result.getReturnCode()).append("\n");
+                // Force the bridge to send a refreshed state as soon as possible to make sure switch is responsive as possible.
+                getBridge().getBridgeState().refresh(BridgeStateCacheType.LIGHTS_AND_GROUPS, BridgeConnectionType.LOCAL);
 
-                Log.i(TAG, "Scene group finished recalling with return codes: " + codesStr.toString());
-
-                getActivity().runOnUiThread(new Runnable()
+                boolean anyErrors = results.stream().anyMatch(new Predicate<SceneGroup.SceneGroupRecallResult>()
                 {
                     @Override
-                    public void run()
+                    public boolean test(SceneGroup.SceneGroupRecallResult result)
                     {
-                        responseProgressBar.setVisibility(View.GONE);
-                        aggregateLight.setColor(AggregateLight.COLOR_UNDEFINED);
-
-                        // Force the bridge to send a refreshed state as soon as possible to make sure switch is responsive as possible.
-                        getBridge().getBridgeState().refresh(BridgeStateCacheType.LIGHTS_AND_GROUPS, BridgeConnectionType.LOCAL);
-
-                        boolean anyErrors = results.stream().anyMatch(new Predicate<SceneGroup.SceneGroupRecallResult>()
-                        {
-                            @Override
-                            public boolean test(SceneGroup.SceneGroupRecallResult result)
-                            {
-                                return result.getReturnCode() != ReturnCode.SUCCESS;
-                            }
-                        });
-
-                        if (anyErrors)
-                        {
-                            Snackbar.make(((AMain) getActivity()).getLayoutForSnackbar(), R.string.could_not_recall_scene, Snackbar.LENGTH_LONG).show();
-                        }
+                        return result.getReturnCode() != ReturnCode.SUCCESS;
                     }
                 });
-            }
+
+                if (anyErrors)
+                {
+                    Snackbar.make(((AMain) getActivity()).getLayoutForSnackbar(), R.string.could_not_recall_scene, Snackbar.LENGTH_LONG).show();
+                }
+            });
         });
     }
 
@@ -449,7 +452,6 @@ public class FLightswitch extends FBase
         onButton.setActivated(on);
 
         Color averageColor = ColorUtilities.averageColors(colors.stream().map(c -> Color.valueOf(c)).collect(Collectors.toList()));
-
         int onColor = ColorUtilities.getContrastColor(averageColor) > 0 ? R.color.colorTextOnLight : R.color.colorTextOnDark;
         onButton.setTextColor(getResources().getColor(on ? onColor : R.color.colorTextOff, null));
 
@@ -481,6 +483,8 @@ public class FLightswitch extends FBase
         colorFab.setVisibility(aggregateLight.getSupportsColors() ? View.VISIBLE : View.GONE);
 
         sceneFab.setEnabled(on);
+
+        lightsBottomsheetAdapter.setLights(aggregateLight.getLights());
 
         if (animate)
         {
@@ -692,6 +696,178 @@ public class FLightswitch extends FBase
             });
         }
     };
+
+    //endregion
+
+
+    //region Lights Bottomsheet RecyclerView.Adapter
+
+    /** {@link RecyclerView.Adapter} that can display a {@link Light}. */
+    class LightsRVAdapter extends RecyclerView.Adapter<LightsRVAdapter.ViewHolder>
+    {
+        //region Fields
+
+        /** The list of {@link Light}s that this adapter manages. */
+        List<Light> lights;
+
+        //endregion
+
+
+        //region Constructors
+
+        /** Creates a new adapter for the specified list of lights. */
+        public LightsRVAdapter(List<Light> lights)
+        {
+            this.lights = lights;
+        }
+
+        //endregion
+
+
+        //region RecyclerView.Adapter Methods
+
+        @Override
+        public LightsRVAdapter.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType)
+        {
+            View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.v_lightcontrolitem, parent, false);
+            return new LightsRVAdapter.ViewHolder(view);
+        }
+
+        @Override
+        public void onBindViewHolder(LightsRVAdapter.ViewHolder holder, int position)
+        {
+            holder.bind(lights.get(position));
+        }
+
+        @Override
+        public int getItemCount()
+        {
+            return lights.size();
+        }
+
+        //endregion
+
+
+        //region List Setter Methods
+
+        /** Sets the list of {@link Light}s contained by this adapter.
+         * @param lights The list of {@link Light}s.
+         */
+        public void setLights(List<Light> lights)
+        {
+            this.lights = lights;
+            notifyDataSetChanged();
+        }
+
+        //endregion
+
+
+        //region ViewHolder
+
+        class ViewHolder extends RecyclerView.ViewHolder
+        {
+            Light light;
+            boolean isBinding = false;
+
+            TextView lightNameTextView;
+            Switch lightSwitch;
+            SeekBar lightBrightnessSeekBar;
+            FloatingActionButton lightColorFab;
+
+            public ViewHolder(View view)
+            {
+                super(view);
+
+                lightNameTextView = itemView.findViewById(R.id.lightNameTextView);
+
+                lightSwitch = itemView.findViewById(R.id.lightSwitch);
+                lightSwitch.setOnCheckedChangeListener((buttonView, isChecked) ->
+                {
+                    if (!isBinding)
+                    {
+                        LightState newState = new LightState();
+                        newState.setOn(isChecked);
+                        updateLightState(light, newState);
+                    }
+                });
+
+                lightBrightnessSeekBar = itemView.findViewById(R.id.lightBrightnessSeekBar);
+                lightBrightnessSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener()
+                {
+                    @Override
+                    public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser)
+                    {
+
+                    }
+
+                    @Override
+                    public void onStartTrackingTouch(SeekBar seekBar)
+                    {
+
+                    }
+
+                    @Override
+                    public void onStopTrackingTouch(SeekBar seekBar)
+                    {
+                        if (!isBinding)
+                        {
+                            int scaledBrightness = (int) (254f * (float) seekBar.getProgress() / 100f);
+                            LightState newState = new LightState();
+                            newState.setBrightness(scaledBrightness);
+                            updateLightState(light, newState);
+                        }
+                    }
+                });
+
+                lightColorFab = itemView.findViewById(R.id.lightColorFab);
+                lightColorFab.setOnClickListener(v ->
+                {
+                    DFColorPicker colorPicker = DFColorPicker.newInstance(light.getColor(), selectedColor ->
+                    {
+                        HueColor hueColor = new HueColor(new HueColor.RGB(Color.red(selectedColor), Color.green(selectedColor), Color.blue(selectedColor)), null, null);
+
+                        LightState newState = new LightState();
+                        newState.setXYWithColor(hueColor);
+                        updateLightState(light, newState);
+                    });
+
+                    colorPicker.show(getFragmentManager(), TAG_COLOR_PICKER);
+                });
+            }
+
+            /** Binds the view holder to a {@link Light} list light.
+             * @param light The {@link Light} light to bind to.
+             */
+            public void bind(Light light)
+            {
+                isBinding = true;
+                this.light = light;
+
+                int textColor = ColorUtilities.getContrastColor(Color.valueOf(light.getColor())) > 0 ? R.color.colorTextOnLight : R.color.colorTextOnDark;
+                lightNameTextView.setTextColor(getResources().getColor(light.getOn() ? textColor : R.color.colorTextOff, null));
+                lightNameTextView.setText(light.getName());
+
+                lightSwitch.setChecked(light.getOn());
+
+                int brightness = light.getBrightness();
+
+                if (brightness == Light.BRIGHTNESS_MULTIPLE)
+                    brightness = 100;
+
+                lightBrightnessSeekBar.setProgress((int)(100 * (float)brightness / 254f));
+                lightBrightnessSeekBar.setEnabled(light.getOn());
+
+                itemView.setBackgroundColor(light.getColor());
+
+                lightColorFab.setVisibility(light.getSupportsColors() ? View.VISIBLE : View.INVISIBLE);
+                lightColorFab.setEnabled(light.getOn());
+
+                isBinding = false;
+            }
+        }
+
+        //endregion
+    }
 
     //endregion
 }
