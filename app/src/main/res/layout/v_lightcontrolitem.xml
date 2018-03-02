@@ -26,69 +26,81 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
+        android:orientation="horizontal"
         android:paddingStart="@dimen/screenEdgeMarginHorizontal"
         android:paddingEnd="@dimen/screenEdgeMarginHorizontal"
         android:paddingTop="@dimen/listItemMarginVertical"
         android:paddingBottom="@dimen/listItemMarginVertical">
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-            <TextView
-                android:id="@+id/lightNameTextView"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_gravity="center_vertical"
-                android:textAppearance="?android:attr/textAppearanceLarge"
-                tools:text="[Light]"/>
-            <android.support.v4.widget.Space
-                android:layout_width="4dp"
-                android:layout_height="match_parent" />
-            <Switch
-                android:id="@+id/lightSwitch"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center_vertical" />
-        </LinearLayout>
-
+        <View
+            android:id="@+id/lightColorView"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_gravity="center"
+            tools:background="#FF0000"/>
         <android.support.v4.widget.Space
-            android:layout_width="match_parent"
-            android:layout_height="4dp" />
-
+            android:layout_width="16dp"
+            android:layout_height="match_parent" />
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
-            <android.support.v4.widget.Space
-                android:layout_width="@dimen/screenEdgeMarginHorizontal"
-                android:layout_height="match_parent" />
-            <SeekBar
-                android:id="@+id/lightBrightnessSeekBar"
-                android:layout_width="0dp"
+            android:orientation="vertical">
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_gravity="center_vertical"/>
+                android:orientation="horizontal">
+                <TextView
+                    android:id="@+id/lightNameTextView"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_gravity="center_vertical"
+                    android:textAppearance="?android:attr/textAppearanceMedium"
+                    tools:text="[Light]"/>
+                <android.support.v4.widget.Space
+                    android:layout_width="4dp"
+                    android:layout_height="match_parent" />
+                <Switch
+                    android:id="@+id/lightSwitch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical" />
+            </LinearLayout>
+
             <android.support.v4.widget.Space
-                android:layout_width="8dp"
-                android:layout_height="match_parent" />
-            <android.support.design.widget.FloatingActionButton
-                android:id="@+id/lightColorFab"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
+                android:layout_height="4dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center_vertical"
-                android:layout_margin="6dp"
-                android:backgroundTint="@color/fab_tint"
-                android:src="@drawable/ic_color_lens_white_24dp"
-                app:borderWidth="0dp"
-                app:fabSize="mini"/>
+                android:orientation="horizontal">
+                <SeekBar
+                    android:id="@+id/lightBrightnessSeekBar"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_gravity="center_vertical"/>
+                <android.support.v4.widget.Space
+                    android:layout_width="8dp"
+                    android:layout_height="match_parent" />
+                <android.support.design.widget.FloatingActionButton
+                    android:id="@+id/lightColorFab"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:layout_margin="6dp"
+                    android:backgroundTint="@color/fab_tint"
+                    android:src="@drawable/ic_color_lens_white_24dp"
+                    app:borderWidth="0dp"
+                    app:fabSize="mini"/>
+            </LinearLayout>
+
         </LinearLayout>
 
     </LinearLayout>
 
     <View
         android:layout_width="match_parent"
-        android:layout_height="2dp"
+        android:layout_height="1dp"
         style="@style/VerticalDivider"/>
 </LinearLayout>

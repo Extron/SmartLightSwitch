@@ -773,6 +773,7 @@ public class FLightswitch extends FBase
             Switch lightSwitch;
             SeekBar lightBrightnessSeekBar;
             FloatingActionButton lightColorFab;
+            View lightColorView;
 
             public ViewHolder(View view)
             {
@@ -833,6 +834,8 @@ public class FLightswitch extends FBase
 
                     colorPicker.show(getFragmentManager(), TAG_COLOR_PICKER);
                 });
+
+                lightColorView = itemView.findViewById(R.id.lightColorView);
             }
 
             /** Binds the view holder to a {@link Light} list light.
@@ -843,8 +846,6 @@ public class FLightswitch extends FBase
                 isBinding = true;
                 this.light = light;
 
-                int textColor = ColorUtilities.getContrastColor(Color.valueOf(light.getColor())) > 0 ? R.color.colorTextOnLight : R.color.colorTextOnDark;
-                lightNameTextView.setTextColor(getResources().getColor(light.getOn() ? textColor : R.color.colorTextOff, null));
                 lightNameTextView.setText(light.getName());
 
                 lightSwitch.setChecked(light.getOn());
@@ -857,7 +858,7 @@ public class FLightswitch extends FBase
                 lightBrightnessSeekBar.setProgress((int)(100 * (float)brightness / 254f));
                 lightBrightnessSeekBar.setEnabled(light.getOn());
 
-                itemView.setBackgroundColor(light.getColor());
+                lightColorView.setBackgroundColor(light.getColor());
 
                 lightColorFab.setVisibility(light.getSupportsColors() ? View.VISIBLE : View.INVISIBLE);
                 lightColorFab.setEnabled(light.getOn());
